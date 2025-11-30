@@ -1,0 +1,588 @@
+import React, { useState, useEffect } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  Zap,
+  AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
+  Search,
+  X,
+  Sparkles,
+  BrainCircuit
+} from 'lucide-react';
+
+// --- Mock Data ---
+
+const MACRO_DATA = [
+  { label: 'S&P 500', value: '4,783.45', change: '+0.45%', isPositive: true },
+  { label: 'NASDAQ', value: '15,055.65', change: '+0.75%', isPositive: true },
+  { label: '10Y Yield', value: '4.02%', change: '-0.05%', isPositive: true }, // Inverse logic handled in component
+  { label: 'VIX', value: '13.45', change: '-1.20%', isPositive: true },       // Inverse logic handled in component
+];
+
+
+
+const OPPORTUNITY_DATA = {
+  conviction: [
+    { ticker: 'NVDA', name: 'NVIDIA Corp', price: '545.00', allocation: '8.5%', signal: 'Strong Buy', exchange: 'NASDAQ' },
+    { ticker: 'MSFT', name: 'Microsoft Corp', price: '390.00', allocation: '7.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'AMZN', name: 'Amazon.com', price: '155.00', allocation: '6.5%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'GOOGL', name: 'Alphabet Inc', price: '140.00', allocation: '6.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'META', name: 'Meta Platforms', price: '365.00', allocation: '5.5%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'AMD', name: 'Adv. Micro Dev', price: '135.00', allocation: '5.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'AVGO', name: 'Broadcom Inc', price: '1100.00', allocation: '4.5%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'TSLA', name: 'Tesla Inc', price: '215.00', allocation: '4.0%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'PLTR', name: 'Palantir Tech', price: '16.50', allocation: '3.5%', signal: 'Spec Buy', exchange: 'NYSE' },
+    { ticker: 'COIN', name: 'Coinbase Global', price: '125.00', allocation: '3.0%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'AAPL', name: 'Apple Inc', price: '185.00', allocation: '3.0%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'NFLX', name: 'Netflix Inc', price: '480.00', allocation: '2.5%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'CRM', name: 'Salesforce', price: '260.00', allocation: '2.5%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'ADBE', name: 'Adobe Inc', price: '590.00', allocation: '2.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'INTC', name: 'Intel Corp', price: '45.00', allocation: '2.0%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'QCOM', name: 'Qualcomm', price: '140.00', allocation: '2.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'TXN', name: 'Texas Inst', price: '165.00', allocation: '1.5%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'IBM', name: 'IBM Corp', price: '160.00', allocation: '1.5%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'ORCL', name: 'Oracle Corp', price: '105.00', allocation: '1.5%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'CSCO', name: 'Cisco Systems', price: '50.00', allocation: '1.5%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'UBER', name: 'Uber Tech', price: '60.00', allocation: '1.5%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'ABNB', name: 'Airbnb Inc', price: '135.00', allocation: '1.0%', signal: 'Hold', exchange: 'NASDAQ' },
+    { ticker: 'DASH', name: 'DoorDash', price: '95.00', allocation: '1.0%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'SQ', name: 'Block Inc', price: '65.00', allocation: '1.0%', signal: 'Spec Buy', exchange: 'NYSE' },
+    { ticker: 'PYPL', name: 'PayPal Hldgs', price: '58.00', allocation: '1.0%', signal: 'Value Buy', exchange: 'NASDAQ' },
+    { ticker: 'SHOP', name: 'Shopify Inc', price: '75.00', allocation: '1.0%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'SNOW', name: 'Snowflake', price: '190.00', allocation: '1.0%', signal: 'Spec Buy', exchange: 'NYSE' },
+    { ticker: 'PANW', name: 'Palo Alto Net', price: '300.00', allocation: '1.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'CRWD', name: 'CrowdStrike', price: '280.00', allocation: '1.0%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'ZS', name: 'Zscaler Inc', price: '220.00', allocation: '0.8%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'NET', name: 'Cloudflare', price: '80.00', allocation: '0.8%', signal: 'Hold', exchange: 'NYSE' },
+    { ticker: 'DDOG', name: 'Datadog Inc', price: '120.00', allocation: '0.8%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'MDB', name: 'MongoDB', price: '400.00', allocation: '0.8%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'TTD', name: 'Trade Desk', price: '70.00', allocation: '0.8%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'ROKU', name: 'Roku Inc', price: '85.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'DKNG', name: 'DraftKings', price: '35.00', allocation: '0.5%', signal: 'Buy', exchange: 'NASDAQ' },
+    { ticker: 'HOOD', name: 'Robinhood', price: '12.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'AFRM', name: 'Affirm Hldgs', price: '40.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'UPST', name: 'Upstart Hldgs', price: '30.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'SOFI', name: 'SoFi Tech', price: '8.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'PATH', name: 'UiPath Inc', price: '22.00', allocation: '0.5%', signal: 'Hold', exchange: 'NYSE' },
+    { ticker: 'U', name: 'Unity Software', price: '35.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NYSE' },
+    { ticker: 'RBLX', name: 'Roblox Corp', price: '40.00', allocation: '0.5%', signal: 'Hold', exchange: 'NYSE' },
+    { ticker: 'ETSY', name: 'Etsy Inc', price: '70.00', allocation: '0.5%', signal: 'Value Buy', exchange: 'NASDAQ' },
+    { ticker: 'PINS', name: 'Pinterest', price: '35.00', allocation: '0.5%', signal: 'Buy', exchange: 'NYSE' },
+    { ticker: 'SNAP', name: 'Snap Inc', price: '15.00', allocation: '0.5%', signal: 'Hold', exchange: 'NYSE' },
+    { ticker: 'MTCH', name: 'Match Group', price: '35.00', allocation: '0.5%', signal: 'Value Buy', exchange: 'NASDAQ' },
+    { ticker: 'BMBL', name: 'Bumble Inc', price: '12.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NASDAQ' },
+    { ticker: 'CHWY', name: 'Chewy Inc', price: '20.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NYSE' },
+    { ticker: 'W', name: 'Wayfair Inc', price: '55.00', allocation: '0.5%', signal: 'Spec Buy', exchange: 'NYSE' },
+  ],
+  shorts: [
+    { ticker: 'RIVN', name: 'Rivian Auto', price: '15.50', allocation: '4.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'LCID', name: 'Lucid Group', price: '3.20', allocation: '4.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'PTON', name: 'Peloton Inter', price: '5.80', allocation: '3.5%', signal: 'Strong Short', exchange: 'NASDAQ' },
+    { ticker: 'ZM', name: 'Zoom Video', price: '68.00', allocation: '3.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'BYND', name: 'Beyond Meat', price: '7.50', allocation: '2.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'AMC', name: 'AMC Entertain', price: '4.50', allocation: '2.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'GME', name: 'GameStop Corp', price: '14.20', allocation: '2.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'NKLA', name: 'Nikola Corp', price: '0.75', allocation: '2.0%', signal: 'Strong Short', exchange: 'NASDAQ' },
+    { ticker: 'SPCE', name: 'Virgin Galactic', price: '1.80', allocation: '2.0%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'CVNA', name: 'Carvana Co', price: '45.00', allocation: '2.0%', signal: 'Spec Short', exchange: 'NYSE' },
+    { ticker: 'MARA', name: 'Marathon Dig', price: '20.00', allocation: '1.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'RIOT', name: 'Riot Platforms', price: '12.00', allocation: '1.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'HUT', name: 'Hut 8 Corp', price: '10.00', allocation: '1.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'MSTR', name: 'MicroStrategy', price: '500.00', allocation: '1.5%', signal: 'Hedge Short', exchange: 'NASDAQ' },
+    { ticker: 'COIN', name: 'Coinbase', price: '125.00', allocation: '1.5%', signal: 'Hedge Short', exchange: 'NASDAQ' },
+    { ticker: 'SAVA', name: 'Cassava Sci', price: '22.00', allocation: '1.0%', signal: 'Spec Short', exchange: 'NASDAQ' },
+    { ticker: 'NVAX', name: 'Novavax Inc', price: '5.00', allocation: '1.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'MRNA', name: 'Moderna Inc', price: '90.00', allocation: '1.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'BABA', name: 'Alibaba Grp', price: '70.00', allocation: '1.0%', signal: 'Avoid', exchange: 'NYSE' },
+    { ticker: 'JD', name: 'JD.com Inc', price: '25.00', allocation: '1.0%', signal: 'Avoid', exchange: 'NASDAQ' },
+    { ticker: 'PDD', name: 'PDD Holdings', price: '140.00', allocation: '1.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'NIO', name: 'NIO Inc', price: '7.00', allocation: '1.0%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'XPEV', name: 'XPeng Inc', price: '10.00', allocation: '1.0%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'LI', name: 'Li Auto Inc', price: '30.00', allocation: '1.0%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'T', name: 'AT&T Inc', price: '16.00', allocation: '1.0%', signal: 'Avoid', exchange: 'NYSE' },
+    { ticker: 'VZ', name: 'Verizon Comm', price: '38.00', allocation: '1.0%', signal: 'Avoid', exchange: 'NYSE' },
+    { ticker: 'WBA', name: 'Walgreens', price: '22.00', allocation: '0.8%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'MMM', name: '3M Company', price: '95.00', allocation: '0.8%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'PARA', name: 'Paramount', price: '12.00', allocation: '0.8%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'WBD', name: 'Warner Bros', price: '10.00', allocation: '0.8%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'DIS', name: 'Disney', price: '90.00', allocation: '0.8%', signal: 'Avoid', exchange: 'NYSE' },
+    { ticker: 'F', name: 'Ford Motor', price: '11.00', allocation: '0.8%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'GM', name: 'General Motors', price: '35.00', allocation: '0.8%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'AAL', name: 'American Air', price: '13.00', allocation: '0.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'UAL', name: 'United Air', price: '40.00', allocation: '0.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'DAL', name: 'Delta Air', price: '38.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'LUV', name: 'Southwest', price: '28.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'CCL', name: 'Carnival Corp', price: '15.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'RCL', name: 'Royal Carib', price: '120.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'NCLH', name: 'Norwegian', price: '18.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'GT', name: 'Goodyear Tire', price: '14.00', allocation: '0.5%', signal: 'Short', exchange: 'NASDAQ' },
+    { ticker: 'X', name: 'US Steel', price: '45.00', allocation: '0.5%', signal: 'Avoid', exchange: 'NYSE' },
+    { ticker: 'CLF', name: 'Cleveland-Cliffs', price: '18.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'AA', name: 'Alcoa Corp', price: '30.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'FCX', name: 'Freeport-McMoRan', price: '40.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'VALE', name: 'Vale SA', price: '14.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'RIO', name: 'Rio Tinto', price: '65.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'BHP', name: 'BHP Group', price: '60.00', allocation: '0.5%', signal: 'Short', exchange: 'NYSE' },
+    { ticker: 'GBTC', name: 'Grayscale BTC', price: '40.00', allocation: '0.5%', signal: 'Short', exchange: 'OTC' },
+    { ticker: 'EETH', name: 'Grayscale ETH', price: '25.00', allocation: '0.5%', signal: 'Short', exchange: 'OTC' },
+  ]
+};
+
+const fetchTickerData = async (ticker) => {
+  try {
+    // Fetch 1 month of daily data for the chart
+    const response = await fetch(`https://corsproxy.io/?https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1mo`);
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const data = await response.json();
+    const result = data.chart.result[0];
+    const quote = result.meta;
+
+    // Process chart data
+    const timestamps = result.timestamp;
+    const prices = result.indicators.quote[0].close;
+
+    const history = timestamps.map((time, index) => ({
+      date: new Date(time * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      price: prices[index] ? parseFloat(prices[index].toFixed(2)) : null
+    })).filter(item => item.price !== null);
+
+    return {
+      ticker: quote.symbol,
+      name: quote.shortName || quote.longName || quote.symbol,
+      price: quote.regularMarketPrice.toFixed(2),
+      change: (quote.regularMarketPrice - quote.chartPreviousClose).toFixed(2),
+      changePercent: ((quote.regularMarketPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+      volume: (quote.regularMarketVolume / 1000000).toFixed(1) + 'M',
+      marketCap: 'N/A',
+      peRatio: 'N/A',
+      high52: quote.fiftyTwoWeekHigh ? quote.fiftyTwoWeekHigh.toFixed(2) : 'N/A',
+      history: history
+    };
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    return null;
+  }
+};
+
+// --- AI Analysis Mock ---
+// --- AI Analysis Logic ---
+const generateAIInsight = async (data) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const { ticker, price, changePercent, high52, volume, history } = data;
+      const currentPrice = parseFloat(price);
+      const high52Val = parseFloat(high52);
+      const changePctVal = parseFloat(changePercent.replace('%', ''));
+
+      // 1. Trend Analysis (SMA)
+      const prices = history.map(h => h.price);
+      const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const trend = currentPrice > avgPrice ? 'Bullish' : 'Bearish';
+      const deviation = ((currentPrice - avgPrice) / avgPrice * 100).toFixed(1);
+
+      // 2. Momentum Analysis
+      let momentum = 'Neutral';
+      if (changePctVal > 2) momentum = 'Strong Bullish';
+      else if (changePctVal > 0.5) momentum = 'Bullish';
+      else if (changePctVal < -2) momentum = 'Strong Bearish';
+      else if (changePctVal < -0.5) momentum = 'Bearish';
+
+      // 3. Resistance / Support Analysis
+      const distToHigh = ((high52Val - currentPrice) / high52Val * 100).toFixed(1);
+      let technicalSetup = '';
+      if (distToHigh < 2) technicalSetup = 'testing major resistance at 52-week highs';
+      else if (distToHigh < 5) technicalSetup = 'approaching key resistance levels';
+      else if (distToHigh > 20) technicalSetup = 'in a significant drawdown, potentially finding support';
+      else technicalSetup = 'trading within a consolidation range';
+
+      // 4. Volume Analysis
+      const volumeNum = parseFloat(volume.replace('M', ''));
+      const volSentiment = volumeNum > 50 ? 'High institutional participation' : 'Moderate liquidity';
+
+      // Construct Thesis
+      const thesis = `
+        Technical analysis for ${ticker} indicates a ${trend} trend, currently trading ${Math.abs(deviation)}% ${deviation > 0 ? 'above' : 'below'} its 20-day moving average. 
+        Momentum is ${momentum} with the stock ${technicalSetup}. 
+        ${volSentiment} suggests ${volumeNum > 50 ? 'strong conviction from smart money' : 'standard trading activity'}. 
+        ${trend === 'Bullish' && momentum.includes('Bullish') ? 'Setup favors long positions on pullbacks.' :
+          trend === 'Bearish' && momentum.includes('Bearish') ? 'Risk remains to the downside; caution advised.' :
+            'Market is indecisive; await confirmation of breakout.'}
+      `;
+
+      resolve(thesis.trim());
+    }, 1500);
+  });
+};
+
+// --- Components ---
+
+const PriceChart = ({ data, isPositive }) => {
+  if (!data || data.length === 0) return null;
+
+  const color = isPositive ? '#10b981' : '#f43f5e'; // emerald-500 or rose-500
+
+  return (
+    <div className="h-48 w-full mt-4">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <XAxis
+            dataKey="date"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#64748b', fontSize: 10 }}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={['auto', 'auto']}
+            hide={true}
+          />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }}
+            itemStyle={{ color: '#f8fafc' }}
+            labelStyle={{ color: '#94a3b8' }}
+          />
+          <Area
+            type="monotone"
+            dataKey="price"
+            stroke={color}
+            fillOpacity={1}
+            fill="url(#colorPrice)"
+            strokeWidth={2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+const MacroCard = ({ label, value, change, isPositive }) => {
+  // Special logic for VIX and Yield: Lower is usually "good" for stocks (green), higher is "bad" (red)
+  // But for the dashboard display, we usually just color code the change itself.
+  // Let's stick to standard green=up, red=down for values, but maybe inverse color for the change text if implied.
+  // Actually, standard financial dashboards usually color change: Green if price went up, Red if price went down.
+  // Let's stick to that for simplicity, but maybe add an indicator.
+
+  const isUp = change.includes('+');
+  const colorClass = isUp ? 'text-emerald-400' : 'text-rose-400';
+
+  // Inverse logic for VIX and Yield (if desired, but standard is usually just direction)
+  // Let's keep it simple: Green = Up, Red = Down.
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-700 transition-colors">
+      <div className="text-slate-400 text-xs font-medium uppercase tracking-wider">{label}</div>
+      <div className="flex items-end justify-between mt-1">
+        <span className="text-xl font-bold text-slate-100">{value}</span>
+        <span className={`text-sm font-medium ${colorClass} flex items-center`}>
+          {isUp ? <ArrowUpRight size={14} className="mr-0.5" /> : <ArrowDownRight size={14} className="mr-0.5" />}
+          {change}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const OpportunityTable = ({ data, type }) => {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="text-slate-500 border-b border-slate-800">
+            <th className="pb-2 font-medium">Ticker</th>
+            <th className="pb-2 font-medium">Exchange</th>
+            <th className="pb-2 font-medium">Price</th>
+            <th className="pb-2 font-medium">Allocation</th>
+            <th className="pb-2 font-medium text-right">Signal</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800">
+          {data.map((item, idx) => (
+            <tr key={idx} className="group hover:bg-slate-800/50 transition-colors">
+              <td className="py-3 font-bold text-slate-200">
+                {item.ticker}
+                <div className="text-xs text-slate-500 font-normal">{item.name}</div>
+              </td>
+              <td className="py-3 text-slate-400 text-xs">{item.exchange}</td>
+              <td className="py-3 text-slate-300">${item.price}</td>
+              <td className="py-3 text-slate-400">{item.allocation}</td>
+              <td className="py-3 text-right">
+                <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-400' :
+                  'bg-rose-500/10 text-rose-400'
+                  }`}>
+                  {item.signal}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+function App() {
+  const [activeTab, setActiveTab] = useState('conviction');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResult, setSearchResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleSearch = async (e) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      setIsLoading(true);
+      setError(null);
+      setSearchResult(null);
+      setAiAnalysis(null);
+
+      const data = await fetchTickerData(searchQuery.toUpperCase());
+
+      if (data) {
+        setSearchResult(data);
+      } else {
+        setError('Ticker not found or API error');
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const closeSearch = () => {
+    setSearchResult(null);
+    setSearchQuery('');
+    setError(null);
+    setAiAnalysis(null);
+  };
+
+  const runAiAnalysis = async () => {
+    if (!searchResult) return;
+    setIsAnalyzing(true);
+    const insight = await generateAIInsight(searchResult);
+    setAiAnalysis(insight);
+    setIsAnalyzing(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 font-sans selection:bg-indigo-500/30 relative">
+
+      {/* Search Modal Overlay */}
+      {(searchResult || isLoading || error) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  {isLoading ? (
+                    <div className="h-8 w-32 bg-slate-800 rounded animate-pulse mb-2"></div>
+                  ) : error ? (
+                    <h2 className="text-xl font-bold text-rose-400 tracking-tight">Error</h2>
+                  ) : (
+                    <>
+                      <h2 className="text-3xl font-bold text-white tracking-tight">{searchResult.ticker}</h2>
+                      <p className="text-slate-400 text-sm font-medium">{searchResult.name}</p>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={closeSearch}
+                  className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {isLoading ? (
+                <div className="space-y-4">
+                  <div className="h-10 w-48 bg-slate-800 rounded animate-pulse"></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-16 bg-slate-800 rounded animate-pulse"></div>
+                    <div className="h-16 bg-slate-800 rounded animate-pulse"></div>
+                    <div className="h-16 bg-slate-800 rounded animate-pulse"></div>
+                    <div className="h-16 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="text-slate-300 mb-4">
+                  {error}. Please try another ticker.
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-3 mb-8">
+                    <span className="text-4xl font-bold text-white">${searchResult.price}</span>
+                    <span className={`text-lg font-medium flex items-center ${parseFloat(searchResult.change) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {parseFloat(searchResult.change) >= 0 ? <ArrowUpRight size={20} className="mr-1" /> : <ArrowDownRight size={20} className="mr-1" />}
+                      {parseFloat(searchResult.change) >= 0 ? '+' : ''}{searchResult.change} ({searchResult.changePercent})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                      <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Volume</div>
+                      <div className="text-slate-200 font-mono text-sm">{searchResult.volume}</div>
+                    </div>
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                      <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Market Cap</div>
+                      <div className="text-slate-200 font-mono text-sm">{searchResult.marketCap}</div>
+                    </div>
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                      <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">P/E Ratio</div>
+                      <div className="text-slate-200 font-mono text-sm">{searchResult.peRatio}</div>
+                    </div>
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                      <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">52W High</div>
+                      <div className="text-slate-200 font-mono text-sm">{searchResult.high52}</div>
+                    </div>
+                  </div>
+
+                  {/* Price Chart */}
+                  <div className="mb-6 bg-slate-950/30 rounded-xl border border-slate-800/50 p-2">
+                    <div className="text-xs text-slate-500 font-medium px-2 pt-2">1 Month Price History</div>
+                    <PriceChart data={searchResult.history} isPositive={parseFloat(searchResult.change) >= 0} />
+                  </div>
+
+                  {/* AI Analysis Section */}
+                  <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <BrainCircuit size={18} className="text-indigo-400" />
+                        <h3 className="font-semibold text-indigo-100">AI Analyst Insight</h3>
+                      </div>
+                      {!aiAnalysis && !isAnalyzing && (
+                        <button
+                          onClick={runAiAnalysis}
+                          className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <Sparkles size={12} />
+                          Generate Analysis
+                        </button>
+                      )}
+                    </div>
+
+                    {isAnalyzing ? (
+                      <div className="flex items-center gap-3 text-indigo-300/70 py-2">
+                        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm animate-pulse">Analyzing market patterns...</span>
+                      </div>
+                    ) : aiAnalysis ? (
+                      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <p className="text-sm text-indigo-200/90 leading-relaxed">
+                          {aiAnalysis}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-indigo-300/50 italic">
+                        Click generate to get an AI-powered technical and fundamental breakdown of {searchResult.ticker}.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {!isLoading && !error && (
+              <div className="bg-slate-950/80 p-4 border-t border-slate-800 flex justify-between items-center">
+                <span className="text-xs text-slate-500">Real-time data delayed by 15 mins</span>
+                <button className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                  Trade {searchResult.ticker}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Header / Macro Strip */}
+      <header className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 p-1.5 rounded-lg">
+              <Activity size={20} className="text-white" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Market<span className="text-indigo-400">Pulse</span></h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearch}
+                placeholder="Search ticker..."
+                className="bg-slate-900 border border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-white placeholder:text-slate-600"
+              />
+            </div>
+            <button className="p-2 bg-slate-900 border border-slate-800 rounded-full hover:bg-slate-800 transition-colors">
+              <AlertTriangle size={18} className="text-slate-400" />
+            </button>
+            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-slate-950 ring-2 ring-slate-800">
+              BD
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {MACRO_DATA.map((item, idx) => (
+            <MacroCard key={idx} {...item} />
+          ))}
+        </div>
+      </header>
+
+      {/* Main Grid */}
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* Center Column: Opportunity Scanner */}
+        <div className="lg:col-span-12">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col h-full">
+            <div className="border-b border-slate-800 px-4 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Zap size={18} className="text-amber-400" />
+                  <h2 className="font-semibold text-white">Opportunity Scanner</h2>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                {['conviction', 'shorts'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                  >
+                    {tab}
+                    {activeTab === tab && (
+                      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-500 rounded-t-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <OpportunityTable data={OPPORTUNITY_DATA[activeTab]} type={activeTab} />
+            </div>
+            <div className="bg-slate-950/50 p-3 border-t border-slate-800 text-center">
+              <button className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+                View All Results
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  );
+}
+
+export default App;
