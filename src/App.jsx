@@ -260,6 +260,14 @@ const calculateShortScore = (rsi, price, sma, changePercent) => {
   return Math.max(0, Math.min(100, score));
 };
 
+const formatMarketCap = (marketCap) => {
+  if (!marketCap) return 'N/A';
+  if (marketCap >= 1e12) return (marketCap / 1e12).toFixed(2) + 'T';
+  if (marketCap >= 1e9) return (marketCap / 1e9).toFixed(2) + 'B';
+  if (marketCap >= 1e6) return (marketCap / 1e6).toFixed(2) + 'M';
+  return marketCap.toLocaleString();
+};
+
 const fetchSimpleQuote = async (ticker) => {
   try {
     // Fetch more data to calculate indicators (2 months for enough history)
@@ -284,6 +292,7 @@ const fetchSimpleQuote = async (ticker) => {
       price: currentPrice.toFixed(2),
       change: (currentPrice - quote.chartPreviousClose).toFixed(2),
       changePercent: ((currentPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+      marketCap: formatMarketCap(quote.marketCap),
       high52: quote.fiftyTwoWeekHigh,
       low52: quote.fiftyTwoWeekLow,
       rsi: rsi ? rsi.toFixed(1) : 'N/A',
@@ -474,6 +483,7 @@ const OpportunityTable = ({ data, type }) => {
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
             <th className="pb-2 font-medium">Ticker</th>
             <th className="pb-2 font-medium">Price</th>
+            <th className="pb-2 font-medium">Mkt Cap</th>
             <th className="pb-2 font-medium">RSI</th>
             <th className="pb-2 font-medium">Score</th>
             <th className="pb-2 font-medium text-right">Signal</th>
@@ -519,6 +529,9 @@ const OpportunityTable = ({ data, type }) => {
                     {item.changePercent}
                   </div>
                 )}
+              </td>
+              <td className="py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">
+                {item.marketCap || 'N/A'}
               </td>
               <td className="py-3">
                 {item.rsi ? (
