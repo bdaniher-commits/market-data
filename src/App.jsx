@@ -354,11 +354,19 @@ const fetchSimpleQuote = async (ticker, spyPrices = []) => {
     const data = await response.json();
     const result = data.chart.result[0];
     const quote = result.meta;
-    const prices = result.indicators.quote[0].close;
+    const prices = data.chart.result[0].indicators.quote[0].close;
+    const validPrices = prices.filter(p => p !== null);
+
+    // Filter out inactive stocks (insufficient data points)
+    if (validPrices.length < 5) {
+      console.warn(`Skipping ${ticker}: Insufficient data (${validPrices.length} points)`);
+      return null;
+    }
+
+    const currentPrice = validPrices[validPrices.length - 1];
 
     // Calculate Indicators
-    const cleanPrices = prices.filter(p => p !== null);
-    const currentPrice = quote.regularMarketPrice || 0;
+    const cleanPrices = validPrices;
 
     const rsi = calculateRSI(cleanPrices);
     const sma20 = calculateSMA(cleanPrices, 20);
