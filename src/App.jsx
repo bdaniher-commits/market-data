@@ -24,7 +24,8 @@ import {
   ShieldAlert,
   Download,
   DollarSign,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -1106,7 +1107,7 @@ function App() {
     const currentList = opportunities[activeTab] || [];
     const updatedList = currentList.map(item => ({ ...item }));
 
-    const batchSize = 3; // Reduced batch size
+    const batchSize = 15; // Increased batch size for faster loading
     for (let i = 0; i < currentList.length; i += batchSize) {
       const batch = currentList.slice(i, i + batchSize);
       const promises = batch.map(async (item, batchIdx) => {
@@ -1128,7 +1129,7 @@ function App() {
 
       // Add delay between batches to avoid rate limiting
       if (i + batchSize < currentList.length) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
 
