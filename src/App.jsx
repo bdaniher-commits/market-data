@@ -520,16 +520,20 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
     if (opportunities['conviction']) {
       opportunities['conviction'].forEach(item => {
         const allocationAmount = (investmentAmount * parseFloat(item.allocation)) / 100;
-        const quantity = Math.floor(allocationAmount / parseFloat(item.price));
-        if (quantity > 0) {
+        const targetQty = Math.floor(allocationAmount / parseFloat(item.price));
+        const currentQty = item.currentQty || 0;
+        const diff = targetQty - currentQty;
+
+        if (diff !== 0) {
           trades.push({
-            action: 'Buy',
-            quantity,
+            action: diff > 0 ? 'Buy' : 'Sell',
+            quantity: Math.abs(diff),
             symbol: item.ticker,
             priceType: 'Limit',
             limitPrice: item.price,
             securityType: 'Equity',
-            allocation: item.allocation
+            allocation: item.allocation,
+            reason: diff > 0 ? `Target ${targetQty} > Current ${currentQty}` : `Target ${targetQty} < Current ${currentQty}`
           });
         }
       });
@@ -539,16 +543,20 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
     if (opportunities['shorts']) {
       opportunities['shorts'].forEach(item => {
         const allocationAmount = (investmentAmount * parseFloat(item.allocation)) / 100;
-        const quantity = Math.floor(allocationAmount / parseFloat(item.price));
-        if (quantity > 0) {
+        const targetQty = Math.floor(allocationAmount / parseFloat(item.price));
+        const currentQty = item.currentQty || 0;
+        const diff = targetQty - currentQty;
+
+        if (diff !== 0) {
           trades.push({
-            action: 'Sell Short',
-            quantity,
+            action: diff > 0 ? 'Sell Short' : 'Buy to Cover',
+            quantity: Math.abs(diff),
             symbol: item.ticker,
             priceType: 'Limit',
             limitPrice: item.price,
             securityType: 'Equity',
-            allocation: item.allocation
+            allocation: item.allocation,
+            reason: diff > 0 ? `Target ${targetQty} > Current ${currentQty}` : `Target ${targetQty} < Current ${currentQty}`
           });
         }
       });
@@ -662,6 +670,7 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
                 <th className="px-6 py-3 font-medium">Quantity</th>
                 <th className="px-6 py-3 font-medium">Limit Price</th>
                 <th className="px-6 py-3 font-medium text-right">Est. Value</th>
+                <th className="px-6 py-3 font-medium text-right">Reason</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -680,6 +689,9 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
                   <td className="px-6 py-3 text-slate-600 dark:text-slate-400">${trade.limitPrice}</td>
                   <td className="px-6 py-3 text-right font-medium text-slate-900 dark:text-slate-200">
                     ${(trade.quantity * parseFloat(trade.limitPrice)).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-3 text-right text-xs text-slate-500 dark:text-slate-400">
+                    {trade.reason}
                   </td>
                 </tr>
               ))}
@@ -737,7 +749,7 @@ const DefinitionsSection = () => {
   );
 };
 
-const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) => {
+const OpportunityTable = ({ data, type, onAllocationChange, onQuantityChange, investmentAmount }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'allocation', direction: 'desc' });
 
   const handleSort = (key) => {
@@ -754,9 +766,9 @@ const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) 
 
     // Helper to parse numeric values
     const parseVal = (val, key) => {
-      if (key === 'price' || key === 'change' || key === 'allocation') return parseFloat(val);
+      if (key === 'price' || key === 'change' || key === 'allocation' || key === 'currentQty') return parseFloat(val || 0);
       if (key === 'changePercent') return parseFloat(val);
-      if (key === 'value') return (parseFloat(val.allocation) * investmentAmount) / 100; // val here is the item itself
+      if (key === 'value') return (parseFloat(val.allocation) * investmentAmount) / 100;
       if (key === 'pnl') {
         const posVal = (parseFloat(val.allocation) * investmentAmount) / 100;
         const change = parseFloat(val.changePercent);
@@ -812,6 +824,7 @@ const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) 
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800 text-xs uppercase tracking-wider">
             <HeaderCell label="Ticker" column="ticker" />
             <HeaderCell label="Price" column="price" />
+            <HeaderCell label="Current Qty" column="currentQty" />
             <HeaderCell label="$ Value" column="value" />
             <th className="pb-2 font-medium text-left">Risk Levels</th>
             <th className="pb-2 font-medium text-right">Signal</th>
@@ -863,6 +876,15 @@ const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) 
                     </div>
                   )}
                 </td>
+                <td className="py-3">
+                  <input
+                    type="number"
+                    value={item.currentQty || 0}
+                    onChange={(e) => onQuantityChange(item.ticker, e.target.value)}
+                    className="w-16 px-2 py-1 text-xs bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-indigo-500 rounded text-center outline-none transition-all font-mono text-slate-700 dark:text-slate-300"
+                    min="0"
+                  />
+                </td>
                 <td className="py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
                   ${positionValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </td>
@@ -910,7 +932,15 @@ function App() {
   const [error, setError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [opportunities, setOpportunities] = useState(OPPORTUNITY_DATA);
+  const [opportunities, setOpportunities] = useState(() => {
+    const saved = localStorage.getItem('opportunities');
+    return saved ? JSON.parse(saved) : OPPORTUNITY_DATA;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('opportunities', JSON.stringify(opportunities));
+  }, [opportunities]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [investmentAmount, setInvestmentAmount] = useState(100000);
@@ -943,6 +973,20 @@ function App() {
         if (updated[key]) {
           updated[key] = updated[key].map(item =>
             item.ticker === ticker ? { ...item, allocation: newAllocation } : item
+          );
+        }
+      });
+      return updated;
+    });
+  };
+
+  const handleQuantityChange = (ticker, newQty) => {
+    setOpportunities(prev => {
+      const updated = { ...prev };
+      ['conviction', 'shorts'].forEach(key => {
+        if (updated[key]) {
+          updated[key] = updated[key].map(item =>
+            item.ticker === ticker ? { ...item, currentQty: parseInt(newQty) || 0 } : item
           );
         }
       });
@@ -1272,6 +1316,7 @@ function App() {
                     data={opportunities[activeTab]}
                     type={activeTab}
                     onAllocationChange={handleAllocationChange}
+                    onQuantityChange={handleQuantityChange}
                     investmentAmount={investmentAmount}
                   />
                 </div>
