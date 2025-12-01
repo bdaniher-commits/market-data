@@ -14,7 +14,9 @@ import {
   BrainCircuit,
   Sun,
   Moon,
-  RefreshCw
+  RefreshCw,
+  TrendingDown as BearishIcon,
+  TrendingUp as BullishIcon
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -192,19 +194,97 @@ const fetchTickerData = async (ticker) => {
 };
 
 
+// --- Technical Analysis Helpers ---
+
+const calculateRSI = (prices, period = 14) => {
+  if (prices.length < period + 1) return null;
+
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = 1; i <= period; i++) {
+    const diff = prices[i] - prices[i - 1];
+    if (diff >= 0) gains += diff;
+    else losses += Math.abs(diff);
+  }
+
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    if (diff >= 0) {
+      avgGain = (avgGain * (period - 1) + diff) / period;
+      avgLoss = (avgLoss * (period - 1) + 0) / period;
+    } else {
+      avgGain = (avgGain * (period - 1) + 0) / period;
+      avgLoss = (avgLoss * (period - 1) + Math.abs(diff)) / period;
+    }
+  }
+
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+};
+
+const calculateSMA = (prices, period = 20) => {
+  if (prices.length < period) return null;
+  const slice = prices.slice(prices.length - period);
+  const sum = slice.reduce((a, b) => a + b, 0);
+  return sum / period;
+};
+
+const calculateShortScore = (rsi, price, sma, changePercent) => {
+  let score = 0;
+
+  // RSI Component (0-40 points)
+  // High RSI = Overbought = Good for shorting
+  if (rsi > 80) score += 40;
+  else if (rsi > 70) score += 30;
+  else if (rsi > 60) score += 15;
+  else if (rsi < 30) score -= 20; // Oversold, bad for shorting
+
+  // Trend Component (0-30 points)
+  // Price below SMA = Downtrend = Good for shorting
+  if (price < sma) score += 30;
+
+  // Momentum Component (0-30 points)
+  // Negative momentum is good for existing shorts
+  const change = parseFloat(changePercent);
+  if (change < -2) score += 30;
+  else if (change < 0) score += 15;
+  else if (change > 2) score -= 10; // Strong upward momentum is risky
+
+  return Math.max(0, Math.min(100, score));
+};
+
 const fetchSimpleQuote = async (ticker) => {
   try {
-    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+    // Fetch more data to calculate indicators (2 months for enough history)
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`;
     const response = await fetchWithFallback(targetUrl);
 
     const data = await response.json();
     const result = data.chart.result[0];
     const quote = result.meta;
+    const prices = result.indicators.quote[0].close;
+
+    // Calculate Indicators
+    // Filter nulls first
+    const cleanPrices = prices.filter(p => p !== null);
+    const currentPrice = quote.regularMarketPrice;
+
+    const rsi = calculateRSI(cleanPrices);
+    const sma20 = calculateSMA(cleanPrices, 20);
+    const shortScore = (rsi && sma20) ? calculateShortScore(rsi, currentPrice, sma20, quote.regularMarketChangePercent) : null;
 
     return {
-      price: quote.regularMarketPrice.toFixed(2),
-      change: (quote.regularMarketPrice - quote.chartPreviousClose).toFixed(2),
-      changePercent: ((quote.regularMarketPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+      price: currentPrice.toFixed(2),
+      change: (currentPrice - quote.chartPreviousClose).toFixed(2),
+      changePercent: ((currentPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+      rsi: rsi ? rsi.toFixed(1) : 'N/A',
+      sma20: sma20 ? sma20.toFixed(2) : 'N/A',
+      shortScore: shortScore ? Math.round(shortScore) : 'N/A'
     };
   } catch (error) {
     console.error(`Error fetching quote for ${ticker}:`, error);
@@ -348,9 +428,9 @@ const OpportunityTable = ({ data, type }) => {
         <thead>
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
             <th className="pb-2 font-medium">Ticker</th>
-            <th className="pb-2 font-medium">Exchange</th>
             <th className="pb-2 font-medium">Price</th>
-            <th className="pb-2 font-medium">Allocation</th>
+            <th className="pb-2 font-medium">RSI</th>
+            <th className="pb-2 font-medium">Score</th>
             <th className="pb-2 font-medium text-right">Signal</th>
           </tr>
         </thead>
@@ -361,9 +441,37 @@ const OpportunityTable = ({ data, type }) => {
                 {item.ticker}
                 <div className="text-xs text-slate-500 font-normal">{item.name}</div>
               </td>
-              <td className="py-3 text-slate-500 dark:text-slate-400 text-xs">{item.exchange}</td>
-              <td className="py-3 text-slate-700 dark:text-slate-300">${item.price}</td>
-              <td className="py-3 text-slate-500 dark:text-slate-400">{item.allocation}</td>
+              <td className="py-3 text-slate-700 dark:text-slate-300">
+                ${item.price}
+                <div className={`text-xs ${parseFloat(item.change) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {item.changePercent}
+                </div>
+              </td>
+              <td className="py-3">
+                {item.rsi ? (
+                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${parseFloat(item.rsi) > 70 ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                      parseFloat(item.rsi) < 30 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                        'text-slate-500'
+                    }`}>
+                    {item.rsi}
+                  </span>
+                ) : <span className="text-slate-400">-</span>}
+              </td>
+              <td className="py-3">
+                {item.shortScore !== undefined && item.shortScore !== 'N/A' ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${item.shortScore > 70 ? 'bg-emerald-500' :
+                            item.shortScore > 40 ? 'bg-amber-500' : 'bg-slate-400'
+                          }`}
+                        style={{ width: `${item.shortScore}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{item.shortScore}</span>
+                  </div>
+                ) : <span className="text-slate-400">-</span>}
+              </td>
               <td className="py-3 text-right">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
                   'bg-rose-500/10 text-rose-600 dark:text-rose-400'
