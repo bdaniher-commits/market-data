@@ -481,7 +481,15 @@ const OpportunityTable = ({ data, type }) => {
           {data.map((item, idx) => (
             <tr key={idx} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
-                {item.ticker}
+                <a
+                  href={`https://www.google.com/finance/quote/${item.ticker}:${item.exchange === 'OTC' ? 'OTCMKTS' : item.exchange}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline decoration-indigo-500/30 underline-offset-2 transition-all"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {item.ticker}
+                </a>
                 <div className="text-xs text-slate-500 font-normal">{item.name}</div>
               </td>
               <td className="py-3 text-slate-700 dark:text-slate-300">
