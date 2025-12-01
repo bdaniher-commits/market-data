@@ -713,10 +713,10 @@ const DefinitionsSection = () => {
   );
 };
 
-const OpportunityTable = ({ data, type }) => {
+const OpportunityTable = ({ data, type, onAllocationChange }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-left border-collapse">
         <thead>
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
             <th className="pb-2 font-medium">Ticker</th>
@@ -772,8 +772,17 @@ const OpportunityTable = ({ data, type }) => {
                   }`}>
                   {((parseFloat(item.allocation) * parseFloat(item.changePercent)) / 100).toFixed(2)}%
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  {item.allocation} alloc
+                <div className="flex items-center gap-1 mt-0.5">
+                  <input
+                    type="number"
+                    value={item.allocation}
+                    onChange={(e) => onAllocationChange(item.ticker, e.target.value)}
+                    className="w-12 px-1 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-indigo-500 rounded text-center outline-none transition-all font-medium text-slate-700 dark:text-slate-300"
+                    min="0"
+                    max="100"
+                    step="0.5"
+                  />
+                  <span className="text-[10px] text-slate-500">%</span>
                 </div>
               </td>
               <td className="py-3">
@@ -841,6 +850,21 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleAllocationChange = (ticker, newAllocation) => {
+    setOpportunities(prev => {
+      const updated = { ...prev };
+      // Update in both lists to be safe, though usually a ticker is in one
+      ['conviction', 'shorts'].forEach(key => {
+        if (updated[key]) {
+          updated[key] = updated[key].map(item =>
+            item.ticker === ticker ? { ...item, allocation: newAllocation } : item
+          );
+        }
+      });
+      return updated;
+    });
   };
 
   const refreshPrices = async () => {
@@ -1157,7 +1181,11 @@ function App() {
             ) : (
               <>
                 <div className="p-4 flex-1 overflow-y-auto">
-                  <OpportunityTable data={opportunities[activeTab]} type={activeTab} />
+                  <OpportunityTable
+                    data={opportunities[activeTab]}
+                    type={activeTab}
+                    onAllocationChange={handleAllocationChange}
+                  />
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
                   <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
