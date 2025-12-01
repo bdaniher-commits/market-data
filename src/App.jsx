@@ -21,7 +21,10 @@ import {
   BookOpen,
   PieChart,
   Target,
-  ShieldAlert
+  ShieldAlert,
+  Download,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -480,6 +483,190 @@ const RiskDashboard = ({ opportunities }) => {
   );
 };
 
+
+
+const TradeGenerator = ({ opportunities }) => {
+  const [investmentAmount, setInvestmentAmount] = useState(100000);
+  const [accountNumber, setAccountNumber] = useState('');
+
+  const generateTrades = () => {
+    const trades = [];
+
+    // Process Longs (Conviction)
+    if (opportunities['conviction']) {
+      opportunities['conviction'].forEach(item => {
+        const allocationAmount = (investmentAmount * parseFloat(item.allocation)) / 100;
+        const quantity = Math.floor(allocationAmount / parseFloat(item.price));
+        if (quantity > 0) {
+          trades.push({
+            action: 'Buy',
+            quantity,
+            symbol: item.ticker,
+            priceType: 'Limit',
+            limitPrice: item.price,
+            securityType: 'Equity',
+            allocation: item.allocation
+          });
+        }
+      });
+    }
+
+    // Process Shorts
+    if (opportunities['shorts']) {
+      opportunities['shorts'].forEach(item => {
+        const allocationAmount = (investmentAmount * parseFloat(item.allocation)) / 100;
+        const quantity = Math.floor(allocationAmount / parseFloat(item.price));
+        if (quantity > 0) {
+          trades.push({
+            action: 'Sell Short',
+            quantity,
+            symbol: item.ticker,
+            priceType: 'Limit',
+            limitPrice: item.price,
+            securityType: 'Equity',
+            allocation: item.allocation
+          });
+        }
+      });
+    }
+
+    return trades;
+  };
+
+  const trades = generateTrades();
+
+  const downloadCSV = () => {
+    // CSV Header for Schwab
+    // Required: Account, Action, Quantity, Symbol, Price Type, Limit Price, Security Type
+    const headers = ['Account', 'Action', 'Quantity', 'Symbol', 'Price Type', 'Limit Price', 'Security Type'];
+
+    const csvRows = [
+      headers.join(','),
+      ...trades.map(trade => [
+        accountNumber || 'ACCOUNT',
+        trade.action,
+        trade.quantity,
+        trade.symbol,
+        trade.priceType,
+        trade.limitPrice,
+        trade.securityType
+      ].join(','))
+    ];
+
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `schwab_trades_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+            <DollarSign size={20} className="text-emerald-500" />
+            Investment Settings
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Total Investment Amount ($)
+              </label>
+              <input
+                type="number"
+                value={investmentAmount}
+                onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Schwab Account Number (Optional)
+              </label>
+              <input
+                type="text"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="Enter account number for CSV"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Summary</h3>
+            <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+              <div className="flex justify-between">
+                <span>Total Trades:</span>
+                <span className="font-medium text-slate-900 dark:text-white">{trades.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Capital Deployed:</span>
+                <span className="font-medium text-slate-900 dark:text-white">
+                  ${trades.reduce((acc, t) => acc + (t.quantity * parseFloat(t.limitPrice)), 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={downloadCSV}
+            className="w-full mt-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            <Download size={18} />
+            Download Schwab CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+          <FileText size={18} className="text-slate-500" />
+          <h3 className="font-semibold text-slate-900 dark:text-white">Trade Preview</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800/50">
+              <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                <th className="px-6 py-3 font-medium">Action</th>
+                <th className="px-6 py-3 font-medium">Symbol</th>
+                <th className="px-6 py-3 font-medium">Quantity</th>
+                <th className="px-6 py-3 font-medium">Limit Price</th>
+                <th className="px-6 py-3 font-medium text-right">Est. Value</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              {trades.map((trade, idx) => (
+                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <td className="px-6 py-3">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${trade.action === 'Buy'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                      }`}>
+                      {trade.action}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 font-bold text-slate-900 dark:text-slate-200">{trade.symbol}</td>
+                  <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-400">{trade.quantity}</td>
+                  <td className="px-6 py-3 text-slate-600 dark:text-slate-400">${trade.limitPrice}</td>
+                  <td className="px-6 py-3 text-right font-medium text-slate-900 dark:text-slate-200">
+                    ${(trade.quantity * parseFloat(trade.limitPrice)).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DefinitionsSection = () => {
   return (
     <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none">
@@ -490,35 +677,35 @@ const DefinitionsSection = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
-            RSI (Relative Strength Index)
+            <PieChart size={16} className="text-indigo-500" />
+            Portfolio Exposure
           </h4>
           <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            A momentum indicator that measures the magnitude of recent price changes.
+            <strong>Net Exposure</strong>: (Longs - Shorts). Positive means you are Long the market.
             <br />
-            <span className="text-rose-500 font-medium">Over 70</span>: Overbought (Potential Short)
-            <br />
-            <span className="text-emerald-500 font-medium">Under 30</span>: Oversold (Potential Long)
+            <strong>Gross Exposure</strong>: (Longs + Shorts). Total leverage deployed.
           </p>
         </div>
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
-            SMA (Simple Moving Average)
+            <DollarSign size={16} className="text-emerald-500" />
+            Day Contrib %
           </h4>
           <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            The average price over a specific period (e.g., 20 days). It helps identify the trend direction.
-            If the price is <span className="font-medium">below</span> the SMA, it often indicates a downtrend.
+            How much this position added/subtracted from your total portfolio today.
+            <br />
+            <em>Formula: Allocation % × Daily Change %</em>
           </p>
         </div>
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
-            Short Score
+            <ShieldAlert size={16} className="text-rose-500" />
+            Risk Levels
           </h4>
           <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            A composite score (0-100) evaluating short-selling suitability.
+            <strong>Stop Loss</strong> (<span className="text-rose-500">Red</span>): Price to exit to limit loss.
             <br />
-            Combines <strong>High RSI</strong>, <strong>Downtrend</strong> (Price vs SMA), and <strong>Negative Momentum</strong>.
-            <br />
-            <span className="text-emerald-500 font-medium">Higher Score</span> = Better Short Candidate.
+            <strong>Target</strong> (<span className="text-emerald-500">Green</span>): Price to take profit.
           </p>
         </div>
       </div>
@@ -534,7 +721,6 @@ const OpportunityTable = ({ data, type }) => {
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
             <th className="pb-2 font-medium">Ticker</th>
             <th className="pb-2 font-medium">Price</th>
-            <th className="pb-2 font-medium">Mkt Cap</th>
             <th className="pb-2 font-medium">Contrib</th>
             <th className="pb-2 font-medium">Risk Levels</th>
             <th className="pb-2 font-medium text-right">Signal</th>
@@ -580,9 +766,6 @@ const OpportunityTable = ({ data, type }) => {
                     {item.changePercent}
                   </div>
                 )}
-              </td>
-              <td className="py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">
-                {item.marketCap || 'N/A'}
               </td>
               <td className="py-3">
                 <div className={`text-xs font-bold ${(parseFloat(item.allocation) * parseFloat(item.changePercent)) >= 0 ? 'text-emerald-500' : 'text-rose-500'
@@ -951,14 +1134,14 @@ function App() {
                 </div>
               </div>
               <div className="flex gap-6">
-                {['conviction', 'shorts'].map((tab) => (
+                {['conviction', 'shorts', 'generator'].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                       }`}
                   >
-                    {tab}
+                    {tab === 'generator' ? 'Trade Generator' : tab}
                     {activeTab === tab && (
                       <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-500 rounded-t-full" />
                     )}
@@ -966,14 +1149,23 @@ function App() {
                 ))}
               </div>
             </div>
-            <div className="p-4 flex-1 overflow-y-auto">
-              <OpportunityTable data={opportunities[activeTab]} type={activeTab} />
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
-              <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
-                View All Results
-              </button>
-            </div>
+
+            {activeTab === 'generator' ? (
+              <div className="p-4 flex-1 overflow-y-auto">
+                <TradeGenerator opportunities={opportunities} />
+              </div>
+            ) : (
+              <>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <OpportunityTable data={opportunities[activeTab]} type={activeTab} />
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
+                  <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
+                    View All Results
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
