@@ -284,6 +284,8 @@ const fetchSimpleQuote = async (ticker) => {
       price: currentPrice.toFixed(2),
       change: (currentPrice - quote.chartPreviousClose).toFixed(2),
       changePercent: ((currentPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+      high52: quote.fiftyTwoWeekHigh,
+      low52: quote.fiftyTwoWeekLow,
       rsi: rsi ? rsi.toFixed(1) : 'N/A',
       sma20: sma20 ? sma20.toFixed(2) : 'N/A',
       shortScore: shortScore ? Math.round(shortScore) : 'N/A'
@@ -494,9 +496,29 @@ const OpportunityTable = ({ data, type }) => {
               </td>
               <td className="py-3 text-slate-700 dark:text-slate-300">
                 ${item.price}
-                <div className={`text-xs ${parseFloat(item.change) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {item.changePercent}
-                </div>
+                {item.high52 && item.low52 ? (
+                  <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-1 relative">
+                    {/* Range Bar */}
+                    <div
+                      className="absolute top-0 bottom-0 bg-indigo-500/30 rounded-full"
+                      style={{
+                        left: '0%',
+                        right: '0%'
+                      }}
+                    />
+                    {/* Current Price Marker */}
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-sm border border-white dark:border-slate-900"
+                      style={{
+                        left: `${Math.min(100, Math.max(0, ((parseFloat(item.price) - item.low52) / (item.high52 - item.low52)) * 100))}%`
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className={`text-xs ${parseFloat(item.change) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {item.changePercent}
+                  </div>
+                )}
               </td>
               <td className="py-3">
                 {item.rsi ? (
