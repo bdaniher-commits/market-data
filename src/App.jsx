@@ -723,6 +723,19 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
             <Download size={18} />
             Download Schwab CSV
           </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to reset all data? This will clear your current quantities and allocations.')) {
+                localStorage.removeItem('opportunities_v2');
+                window.location.reload();
+              }
+            }}
+            className="w-full mt-3 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            <RotateCcw size={18} />
+            Reset All Data
+          </button>
         </div>
       </div>
 
@@ -1007,12 +1020,12 @@ function App() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [opportunities, setOpportunities] = useState(() => {
-    const saved = localStorage.getItem('opportunities');
+    const saved = localStorage.getItem('opportunities_v2');
     return saved ? JSON.parse(saved) : OPPORTUNITY_DATA;
   });
 
   useEffect(() => {
-    localStorage.setItem('opportunities', JSON.stringify(opportunities));
+    localStorage.setItem('opportunities_v2', JSON.stringify(opportunities));
   }, [opportunities]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
