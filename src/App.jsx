@@ -16,7 +16,9 @@ import {
   Moon,
   RefreshCw,
   TrendingDown as BearishIcon,
-  TrendingUp as BullishIcon
+  TrendingUp as BullishIcon,
+  HelpCircle,
+  BookOpen
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -397,15 +399,10 @@ const PriceChart = ({ data, isPositive, isDark }) => {
 const MacroCard = ({ label, value, change, isPositive }) => {
   // Special logic for VIX and Yield: Lower is usually "good" for stocks (green), higher is "bad" (red)
   // But for the dashboard display, we usually just color code the change itself.
-  // Let's stick to standard green=up, red=down for values, but maybe inverse color for the change text if implied.
   // Actually, standard financial dashboards usually color change: Green if price went up, Red if price went down.
-  // Let's stick to that for simplicity, but maybe add an indicator.
 
   const isUp = change.includes('+');
   const colorClass = isUp ? 'text-emerald-400' : 'text-rose-400';
-
-  // Inverse logic for VIX and Yield (if desired, but standard is usually just direction)
-  // Let's keep it simple: Green = Up, Red = Down.
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none">
@@ -416,6 +413,52 @@ const MacroCard = ({ label, value, change, isPositive }) => {
           {isUp ? <ArrowUpRight size={14} className="mr-0.5" /> : <ArrowDownRight size={14} className="mr-0.5" />}
           {change}
         </span>
+      </div>
+    </div>
+  );
+};
+
+const DefinitionsSection = () => {
+  return (
+    <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none">
+      <div className="flex items-center gap-2 mb-4">
+        <BookOpen size={20} className="text-indigo-600 dark:text-indigo-400" />
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Metric Definitions</h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
+            RSI (Relative Strength Index)
+          </h4>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            A momentum indicator that measures the magnitude of recent price changes.
+            <br />
+            <span className="text-rose-500 font-medium">Over 70</span>: Overbought (Potential Short)
+            <br />
+            <span className="text-emerald-500 font-medium">Under 30</span>: Oversold (Potential Long)
+          </p>
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
+            SMA (Simple Moving Average)
+          </h4>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            The average price over a specific period (e.g., 20 days). It helps identify the trend direction.
+            If the price is <span className="font-medium">below</span> the SMA, it often indicates a downtrend.
+          </p>
+        </div>
+        <div>
+          <h4 className="text-sm font-bold text-slate-900 dark:text-slate-200 mb-2 flex items-center gap-2">
+            Short Score
+          </h4>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            A composite score (0-100) evaluating short-selling suitability.
+            <br />
+            Combines <strong>High RSI</strong>, <strong>Downtrend</strong> (Price vs SMA), and <strong>Negative Momentum</strong>.
+            <br />
+            <span className="text-emerald-500 font-medium">Higher Score</span> = Better Short Candidate.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -459,17 +502,11 @@ const OpportunityTable = ({ data, type }) => {
               </td>
               <td className="py-3">
                 {item.shortScore !== undefined && item.shortScore !== 'N/A' ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${item.shortScore > 70 ? 'bg-emerald-500' :
-                          item.shortScore > 40 ? 'bg-amber-500' : 'bg-slate-400'
-                          }`}
-                        style={{ width: `${item.shortScore}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{item.shortScore}</span>
-                  </div>
+                  <span className={`text-sm font-bold ${item.shortScore > 70 ? 'text-emerald-500' :
+                    item.shortScore > 40 ? 'text-amber-500' : 'text-slate-400'
+                    }`}>
+                    {item.shortScore}
+                  </span>
                 ) : <span className="text-slate-400">-</span>}
               </td>
               <td className="py-3 text-right">
@@ -832,6 +869,8 @@ function App() {
         </div>
 
       </main>
+
+      <DefinitionsSection />
     </div >
   );
 }
