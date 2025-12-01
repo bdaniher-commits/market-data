@@ -277,18 +277,44 @@ const formatMarketCap = (marketCap) => {
 const fetchSimpleQuote = async (ticker) => {
   try {
     // Fetch more data to calculate indicators (2 months for enough history)
-    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`;
-    const response = await fetchWithFallback(targetUrl);
+    // Also fetch quoteSummary for Beta
+    const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`;
+    const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail,defaultKeyStatistics`;
 
-    const data = await response.json();
-    const result = data.chart.result[0];
-    const quote = result.meta;
-    const prices = result.indicators.quote[0].close;
+    const [chartResp, summaryResp] = await Promise.allSettled([
+      fetchWithFallback(chartUrl),
+      fetchWithFallback(summaryUrl)
+    ]);
+
+    let prices = [];
+    let quote = {};
+    let beta = 1.0; // Default to market beta
+
+    if (chartResp.status === 'fulfilled') {
+      const data = await chartResp.value.json();
+      const result = data.chart.result[0];
+      quote = result.meta;
+      prices = result.indicators.quote[0].close;
+    }
+
+    if (summaryResp.status === 'fulfilled') {
+      try {
+        const data = await summaryResp.value.json();
+        const summary = data.quoteSummary.result[0].summaryDetail;
+        if (summary && summary.beta && summary.beta.raw) {
+          beta = summary.beta.raw;
+        } else if (summary && summary.beta) {
+          beta = summary.beta; // Sometimes it's just a number
+        }
+      } catch (e) {
+        console.warn(`Could not parse beta for ${ticker}`, e);
+      }
+    }
 
     // Calculate Indicators
     // Filter nulls first
     const cleanPrices = prices.filter(p => p !== null);
-    const currentPrice = quote.regularMarketPrice;
+    const currentPrice = quote.regularMarketPrice || 0;
 
     const rsi = calculateRSI(cleanPrices);
     const sma20 = calculateSMA(cleanPrices, 20);
@@ -303,7 +329,8 @@ const fetchSimpleQuote = async (ticker) => {
       low52: quote.fiftyTwoWeekLow,
       rsi: rsi ? rsi.toFixed(1) : 'N/A',
       sma20: sma20 ? sma20.toFixed(2) : 'N/A',
-      shortScore: shortScore ? Math.round(shortScore) : 'N/A'
+      shortScore: shortScore ? Math.round(shortScore) : 'N/A',
+      beta: beta.toFixed(2)
     };
   } catch (error) {
     console.error(`Error fetching quote for ${ticker}:`, error);
@@ -440,6 +467,8 @@ const RiskDashboard = ({ opportunities, investmentAmount }) => {
   const shorts = opportunities['shorts'] || [];
 
   const calculateExposure = (list) => list.reduce((acc, item) => acc + parseFloat(item.allocation), 0);
+  const calculateBetaExposure = (list) => list.reduce((acc, item) => acc + (parseFloat(item.allocation) * (parseFloat(item.beta) || 1)), 0);
+
   const calculatePnL = (list, type) => list.reduce((acc, item) => {
     const positionValue = (investmentAmount * parseFloat(item.allocation)) / 100;
     const change = parseFloat(item.changePercent);
@@ -453,6 +482,10 @@ const RiskDashboard = ({ opportunities, investmentAmount }) => {
   const netExposure = longExposure - shortExposure;
   const grossExposure = longExposure + shortExposure;
 
+  const longBetaExp = calculateBetaExposure(longs);
+  const shortBetaExp = calculateBetaExposure(shorts);
+  const netBetaExposure = longBetaExp - shortBetaExp;
+
   const longPnL = calculatePnL(longs, 'long');
   const shortPnL = calculatePnL(shorts, 'short');
   const totalPnL = longPnL + shortPnL;
@@ -465,7 +498,12 @@ const RiskDashboard = ({ opportunities, investmentAmount }) => {
         <div className={`text-2xl font-bold ${netExposure > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
           {netExposure > 0 ? '+' : ''}{netExposure.toFixed(1)}%
         </div>
-        <div className="text-xs text-slate-400 mt-1">Market Direction Risk</div>
+        <div className="text-xs text-slate-400 mt-1 flex justify-between">
+          <span>Beta Adj:</span>
+          <span className={`${netBetaExposure > 0 ? 'text-emerald-500' : 'text-rose-500'} font-bold`}>
+            {netBetaExposure > 0 ? '+' : ''}{netBetaExposure.toFixed(1)}%
+          </span>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
@@ -766,7 +804,7 @@ const OpportunityTable = ({ data, type, onAllocationChange, onQuantityChange, in
 
     // Helper to parse numeric values
     const parseVal = (val, key) => {
-      if (key === 'price' || key === 'change' || key === 'allocation' || key === 'currentQty') return parseFloat(val || 0);
+      if (key === 'price' || key === 'change' || key === 'allocation' || key === 'currentQty' || key === 'beta') return parseFloat(val || 0);
       if (key === 'changePercent') return parseFloat(val);
       if (key === 'value') return (parseFloat(val.allocation) * investmentAmount) / 100;
       if (key === 'pnl') {
@@ -824,6 +862,7 @@ const OpportunityTable = ({ data, type, onAllocationChange, onQuantityChange, in
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800 text-xs uppercase tracking-wider">
             <HeaderCell label="Ticker" column="ticker" />
             <HeaderCell label="Price" column="price" />
+            <HeaderCell label="Beta" column="beta" />
             <HeaderCell label="Current Qty" column="currentQty" />
             <HeaderCell label="$ Value" column="value" />
             <th className="pb-2 font-medium text-left">Risk Levels</th>
@@ -875,6 +914,9 @@ const OpportunityTable = ({ data, type, onAllocationChange, onQuantityChange, in
                       {item.changePercent}
                     </div>
                   )}
+                </td>
+                <td className="py-3 text-slate-600 dark:text-slate-400 text-xs font-medium">
+                  {item.beta || '1.00'}
                 </td>
                 <td className="py-3">
                   <input
