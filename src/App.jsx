@@ -435,16 +435,28 @@ const MacroCard = ({ label, value, change, isPositive }) => {
   );
 };
 
-const RiskDashboard = ({ opportunities }) => {
+const RiskDashboard = ({ opportunities, investmentAmount }) => {
   const longs = opportunities['conviction'] || [];
   const shorts = opportunities['shorts'] || [];
 
   const calculateExposure = (list) => list.reduce((acc, item) => acc + parseFloat(item.allocation), 0);
+  const calculatePnL = (list, type) => list.reduce((acc, item) => {
+    const positionValue = (investmentAmount * parseFloat(item.allocation)) / 100;
+    const change = parseFloat(item.changePercent);
+    // For shorts, price drop is positive P&L
+    const pnl = type === 'short' ? positionValue * (change * -1 / 100) : positionValue * (change / 100);
+    return acc + pnl;
+  }, 0);
 
   const longExposure = calculateExposure(longs);
   const shortExposure = calculateExposure(shorts);
   const netExposure = longExposure - shortExposure;
   const grossExposure = longExposure + shortExposure;
+
+  const longPnL = calculatePnL(longs, 'long');
+  const shortPnL = calculatePnL(shorts, 'short');
+  const totalPnL = longPnL + shortPnL;
+  const totalPnLPercent = (totalPnL / investmentAmount) * 100;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -455,27 +467,40 @@ const RiskDashboard = ({ opportunities }) => {
         </div>
         <div className="text-xs text-slate-400 mt-1">Market Direction Risk</div>
       </div>
+
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
-        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Gross Exposure</div>
-        <div className="text-2xl font-bold text-slate-900 dark:text-white">
-          {grossExposure.toFixed(1)}%
+        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Daily P&L</div>
+        <div className={`text-2xl font-bold ${totalPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          {totalPnL >= 0 ? '+' : ''}${Math.abs(totalPnL).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
         </div>
-        <div className="text-xs text-slate-400 mt-1">Total Leverage</div>
+        <div className={`text-xs font-medium mt-1 ${totalPnLPercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          {totalPnLPercent >= 0 ? '+' : ''}{totalPnLPercent.toFixed(2)}%
+        </div>
       </div>
+
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none col-span-2">
-        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-3">Exposure Balance</div>
+        <div className="flex justify-between items-center mb-3">
+          <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Exposure Balance</div>
+          <div className="text-xs font-mono text-slate-400">Gross: {grossExposure.toFixed(1)}%</div>
+        </div>
         <div className="flex items-center gap-2 h-8">
           <div
-            className="h-full bg-emerald-500/20 border border-emerald-500/50 rounded-l-lg flex items-center justify-center text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-all duration-500"
+            className="h-full bg-emerald-500/20 border border-emerald-500/50 rounded-l-lg flex items-center justify-center text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-all duration-500 relative group"
             style={{ width: `${(longExposure / grossExposure) * 100}%` }}
           >
             Long {longExposure.toFixed(1)}%
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              Est. P&L: ${longPnL.toFixed(0)}
+            </div>
           </div>
           <div
-            className="h-full bg-rose-500/20 border border-rose-500/50 rounded-r-lg flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 transition-all duration-500"
+            className="h-full bg-rose-500/20 border border-rose-500/50 rounded-r-lg flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 transition-all duration-500 relative group"
             style={{ width: `${(shortExposure / grossExposure) * 100}%` }}
           >
             Short {shortExposure.toFixed(1)}%
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              Est. P&L: ${shortPnL.toFixed(0)}
+            </div>
           </div>
         </div>
       </div>
@@ -485,8 +510,7 @@ const RiskDashboard = ({ opportunities }) => {
 
 
 
-const TradeGenerator = ({ opportunities }) => {
-  const [investmentAmount, setInvestmentAmount] = useState(100000);
+const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }) => {
   const [accountNumber, setAccountNumber] = useState('');
 
   const generateTrades = () => {
@@ -713,107 +737,189 @@ const DefinitionsSection = () => {
   );
 };
 
-const OpportunityTable = ({ data, type, onAllocationChange }) => {
+const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) => {
+  const [sortConfig, setSortConfig] = useState({ key: 'allocation', direction: 'desc' });
+
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedData = [...data].sort((a, b) => {
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+
+    // Helper to parse numeric values
+    const parseVal = (val, key) => {
+      if (key === 'price' || key === 'change' || key === 'allocation') return parseFloat(val);
+      if (key === 'changePercent') return parseFloat(val);
+      if (key === 'value') return (parseFloat(val.allocation) * investmentAmount) / 100; // val here is the item itself
+      if (key === 'pnl') {
+        const posVal = (parseFloat(val.allocation) * investmentAmount) / 100;
+        const change = parseFloat(val.changePercent);
+        return type === 'shorts' ? posVal * (change * -1 / 100) : posVal * (change / 100);
+      }
+      return val;
+    };
+
+    // Custom sort logic for calculated fields
+    if (sortConfig.key === 'value') {
+      aValue = (parseFloat(a.allocation) * investmentAmount) / 100;
+      bValue = (parseFloat(b.allocation) * investmentAmount) / 100;
+    } else if (sortConfig.key === 'pnl') {
+      const aPos = (parseFloat(a.allocation) * investmentAmount) / 100;
+      const bPos = (parseFloat(b.allocation) * investmentAmount) / 100;
+      const aChange = parseFloat(a.changePercent);
+      const bChange = parseFloat(b.changePercent);
+      aValue = type === 'shorts' ? aPos * (aChange * -1 / 100) : aPos * (aChange / 100);
+      bValue = type === 'shorts' ? bPos * (bChange * -1 / 100) : bPos * (bChange / 100);
+    } else {
+      aValue = parseVal(a, sortConfig.key); // Pass the whole item for 'value' and 'pnl'
+      bValue = parseVal(b, sortConfig.key); // Pass the whole item for 'value' and 'pnl'
+    }
+
+    if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const SortIcon = ({ column }) => {
+    if (sortConfig.key !== column) return <div className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-30">▼</div>;
+    return sortConfig.direction === 'asc'
+      ? <div className="w-3 h-3 ml-1 text-indigo-500">▲</div>
+      : <div className="w-3 h-3 ml-1 text-indigo-500">▼</div>;
+  };
+
+  const HeaderCell = ({ label, column, align = 'left' }) => (
+    <th
+      className={`pb-2 font-medium cursor-pointer group select-none ${align === 'right' ? 'text-right' : 'text-left'}`}
+      onClick={() => handleSort(column)}
+    >
+      <div className={`flex items-center ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+        {label}
+        <SortIcon column={column} />
+      </div>
+    </th>
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
-            <th className="pb-2 font-medium">Ticker</th>
-            <th className="pb-2 font-medium">Price</th>
-            <th className="pb-2 font-medium">Contrib</th>
-            <th className="pb-2 font-medium">Risk Levels</th>
+          <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800 text-xs uppercase tracking-wider">
+            <HeaderCell label="Ticker" column="ticker" />
+            <HeaderCell label="Price" column="price" />
+            <HeaderCell label="Alloc %" column="allocation" />
+            <HeaderCell label="$ Value" column="value" />
+            <HeaderCell label="Day P&L" column="pnl" />
+            <th className="pb-2 font-medium text-left">Risk Levels</th>
             <th className="pb-2 font-medium text-right">Signal</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-          {data.map((item, idx) => (
-            <tr key={idx} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-              <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
-                <a
-                  href={`https://www.google.com/finance/quote/${item.ticker}:${item.exchange === 'OTC' ? 'OTCMKTS' : item.exchange}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline decoration-indigo-500/30 underline-offset-2 transition-all"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {item.ticker}
-                </a>
-                <div className="text-xs text-slate-500 font-normal">{item.name}</div>
-              </td>
-              <td className="py-3 text-slate-700 dark:text-slate-300">
-                ${item.price}
-                {item.high52 && item.low52 ? (
-                  <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-1 relative">
-                    {/* Range Bar */}
-                    <div
-                      className="absolute top-0 bottom-0 bg-indigo-500/30 rounded-full"
-                      style={{
-                        left: '0%',
-                        right: '0%'
-                      }}
+          {sortedData.map((item, idx) => {
+            const positionValue = (parseFloat(item.allocation) * investmentAmount) / 100;
+            const change = parseFloat(item.changePercent);
+            const pnl = type === 'shorts' ? positionValue * (change * -1 / 100) : positionValue * (change / 100);
+
+            return (
+              <tr key={idx} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
+                  <a
+                    href={`https://www.google.com/finance/quote/${item.ticker}:${item.exchange === 'OTC' ? 'OTCMKTS' : item.exchange}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline decoration-indigo-500/30 underline-offset-2 transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {item.ticker}
+                  </a>
+                  <div className="text-xs text-slate-500 font-normal">{item.name}</div>
+                </td>
+                <td className="py-3 text-slate-700 dark:text-slate-300">
+                  ${item.price}
+                  {item.high52 && item.low52 ? (
+                    <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mt-1 relative">
+                      {/* Range Bar */}
+                      <div
+                        className="absolute top-0 bottom-0 bg-indigo-500/30 rounded-full"
+                        style={{
+                          left: '0%',
+                          right: '0%'
+                        }}
+                      />
+                      {/* Current Price Marker */}
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-sm border border-white dark:border-slate-900"
+                        style={{
+                          left: `${Math.min(100, Math.max(0, ((parseFloat(item.price) - item.low52) / (item.high52 - item.low52)) * 100))}%`
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className={`text-xs ${parseFloat(item.change) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {item.changePercent}
+                    </div>
+                  )}
+                </td>
+                <td className="py-3">
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={item.allocation}
+                      onChange={(e) => onAllocationChange(item.ticker, e.target.value)}
+                      className="w-12 px-1 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-indigo-500 rounded text-center outline-none transition-all font-medium text-slate-700 dark:text-slate-300"
+                      min="0"
+                      max="100"
+                      step="0.5"
                     />
-                    {/* Current Price Marker */}
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 w-2 h-2 bg-indigo-600 dark:bg-indigo-400 rounded-full shadow-sm border border-white dark:border-slate-900"
-                      style={{
-                        left: `${Math.min(100, Math.max(0, ((parseFloat(item.price) - item.low52) / (item.high52 - item.low52)) * 100))}%`
-                      }}
-                    />
+                    <span className="text-[10px] text-slate-500">%</span>
                   </div>
-                ) : (
-                  <div className={`text-xs ${parseFloat(item.change) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {item.changePercent}
+                </td>
+                <td className="py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                  ${positionValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </td>
+                <td className="py-3">
+                  <div className={`text-xs font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(0)}
                   </div>
-                )}
-              </td>
-              <td className="py-3">
-                <div className={`text-xs font-bold ${(parseFloat(item.allocation) * parseFloat(item.changePercent)) >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                  }`}>
-                  {((parseFloat(item.allocation) * parseFloat(item.changePercent)) / 100).toFixed(2)}%
-                </div>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <input
-                    type="number"
-                    value={item.allocation}
-                    onChange={(e) => onAllocationChange(item.ticker, e.target.value)}
-                    className="w-12 px-1 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-indigo-500 rounded text-center outline-none transition-all font-medium text-slate-700 dark:text-slate-300"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                  />
-                  <span className="text-[10px] text-slate-500">%</span>
-                </div>
-              </td>
-              <td className="py-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1 text-[10px] text-rose-500">
-                    <ShieldAlert size={10} />
-                    <span>
-                      {type === 'conviction'
-                        ? (parseFloat(item.price) * 0.95).toFixed(2)
-                        : (parseFloat(item.price) * 1.05).toFixed(2)}
-                    </span>
+                  <div className="text-[10px] text-slate-400">
+                    {((pnl / investmentAmount) * 100).toFixed(2)}% impact
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-500">
-                    <Target size={10} />
-                    <span>
-                      {type === 'conviction'
-                        ? (parseFloat(item.price) * 1.15).toFixed(2)
-                        : (parseFloat(item.price) * 0.85).toFixed(2)}
-                    </span>
+                </td>
+                <td className="py-3">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1 text-[10px] text-rose-500">
+                      <ShieldAlert size={10} />
+                      <span>
+                        {type === 'conviction'
+                          ? (parseFloat(item.price) * 0.95).toFixed(2)
+                          : (parseFloat(item.price) * 1.05).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-500">
+                      <Target size={10} />
+                      <span>
+                        {type === 'conviction'
+                          ? (parseFloat(item.price) * 1.15).toFixed(2)
+                          : (parseFloat(item.price) * 0.85).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </td>
-              <td className="py-3 text-right">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
-                  'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  }`}>
-                  {item.signal}
-                </span>
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="py-3 text-right">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                    'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                    }`}>
+                    {item.signal}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -831,6 +937,7 @@ function App() {
   const [opportunities, setOpportunities] = useState(OPPORTUNITY_DATA);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [investmentAmount, setInvestmentAmount] = useState(100000);
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') || 'dark';
@@ -890,7 +997,7 @@ function App() {
       });
       await Promise.all(promises);
 
-      // Optional: Update state incrementally to show progress? 
+      // Optional: Update state incrementally to show progress?
       // No, better to update all at once or per batch to avoid too many renders
       // Let's update per batch so user sees progress
       setOpportunities(prev => ({
@@ -1132,7 +1239,7 @@ function App() {
 
         {/* Risk Dashboard */}
         <div className="lg:col-span-12">
-          <RiskDashboard opportunities={opportunities} />
+          <RiskDashboard opportunities={opportunities} investmentAmount={investmentAmount} />
         </div>
 
         {/* Center Column: Opportunity Scanner */}
@@ -1176,7 +1283,11 @@ function App() {
 
             {activeTab === 'generator' ? (
               <div className="p-4 flex-1 overflow-y-auto">
-                <TradeGenerator opportunities={opportunities} />
+                <TradeGenerator
+                  opportunities={opportunities}
+                  investmentAmount={investmentAmount}
+                  setInvestmentAmount={setInvestmentAmount}
+                />
               </div>
             ) : (
               <>
@@ -1185,6 +1296,7 @@ function App() {
                     data={opportunities[activeTab]}
                     type={activeTab}
                     onAllocationChange={handleAllocationChange}
+                    investmentAmount={investmentAmount}
                   />
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
