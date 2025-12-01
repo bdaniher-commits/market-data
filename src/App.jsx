@@ -11,7 +11,9 @@ import {
   Search,
   X,
   Sparkles,
-  BrainCircuit
+  BrainCircuit,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -221,10 +223,14 @@ const generateAIInsight = async (data) => {
 
 // --- Components ---
 
-const PriceChart = ({ data, isPositive }) => {
+const PriceChart = ({ data, isPositive, isDark }) => {
   if (!data || data.length === 0) return null;
 
   const color = isPositive ? '#10b981' : '#f43f5e'; // emerald-500 or rose-500
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+  const tooltipBg = isDark ? '#0f172a' : '#ffffff';
+  const tooltipBorder = isDark ? '#334155' : '#cbd5e1';
+  const tooltipText = isDark ? '#f8fafc' : '#0f172a';
 
   return (
     <div className="h-48 w-full mt-4">
@@ -236,7 +242,7 @@ const PriceChart = ({ data, isPositive }) => {
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis
             dataKey="date"
             axisLine={false}
@@ -249,8 +255,8 @@ const PriceChart = ({ data, isPositive }) => {
             hide={true}
           />
           <Tooltip
-            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }}
-            itemStyle={{ color: '#f8fafc' }}
+            contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, color: tooltipText }}
+            itemStyle={{ color: tooltipText }}
             labelStyle={{ color: '#94a3b8' }}
           />
           <Area
@@ -281,10 +287,10 @@ const MacroCard = ({ label, value, change, isPositive }) => {
   // Let's keep it simple: Green = Up, Red = Down.
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-700 transition-colors">
-      <div className="text-slate-400 text-xs font-medium uppercase tracking-wider">{label}</div>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none">
+      <div className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">{label}</div>
       <div className="flex items-end justify-between mt-1">
-        <span className="text-xl font-bold text-slate-100">{value}</span>
+        <span className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</span>
         <span className={`text-sm font-medium ${colorClass} flex items-center`}>
           {isUp ? <ArrowUpRight size={14} className="mr-0.5" /> : <ArrowDownRight size={14} className="mr-0.5" />}
           {change}
@@ -299,7 +305,7 @@ const OpportunityTable = ({ data, type }) => {
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="text-slate-500 border-b border-slate-800">
+          <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800">
             <th className="pb-2 font-medium">Ticker</th>
             <th className="pb-2 font-medium">Exchange</th>
             <th className="pb-2 font-medium">Price</th>
@@ -307,19 +313,19 @@ const OpportunityTable = ({ data, type }) => {
             <th className="pb-2 font-medium text-right">Signal</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800">
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
           {data.map((item, idx) => (
-            <tr key={idx} className="group hover:bg-slate-800/50 transition-colors">
-              <td className="py-3 font-bold text-slate-200">
+            <tr key={idx} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <td className="py-3 font-bold text-slate-900 dark:text-slate-200">
                 {item.ticker}
                 <div className="text-xs text-slate-500 font-normal">{item.name}</div>
               </td>
-              <td className="py-3 text-slate-400 text-xs">{item.exchange}</td>
-              <td className="py-3 text-slate-300">${item.price}</td>
-              <td className="py-3 text-slate-400">{item.allocation}</td>
+              <td className="py-3 text-slate-500 dark:text-slate-400 text-xs">{item.exchange}</td>
+              <td className="py-3 text-slate-700 dark:text-slate-300">${item.price}</td>
+              <td className="py-3 text-slate-500 dark:text-slate-400">{item.allocation}</td>
               <td className="py-3 text-right">
-                <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-400' :
-                  'bg-rose-500/10 text-rose-400'
+                <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                  'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                   }`}>
                   {item.signal}
                 </span>
@@ -340,6 +346,26 @@ function App() {
   const [error, setError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'dark';
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   const handleSearch = async (e) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
@@ -375,12 +401,12 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 font-sans selection:bg-indigo-500/30 relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 p-4 md:p-6 font-sans selection:bg-indigo-500/30 relative transition-colors duration-300">
 
       {/* Search Modal Overlay */}
       {(searchResult || isLoading || error) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
             <div className="p-6">
               <div className="flex justify-between items-start mb-6">
                 <div>
@@ -389,15 +415,16 @@ function App() {
                   ) : error ? (
                     <h2 className="text-xl font-bold text-rose-400 tracking-tight">Error</h2>
                   ) : (
+
                     <>
-                      <h2 className="text-3xl font-bold text-white tracking-tight">{searchResult.ticker}</h2>
-                      <p className="text-slate-400 text-sm font-medium">{searchResult.name}</p>
+                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{searchResult.ticker}</h2>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{searchResult.name}</p>
                     </>
                   )}
                 </div>
                 <button
                   onClick={closeSearch}
-                  className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-white"
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   <X size={20} />
                 </button>
@@ -420,7 +447,7 @@ function App() {
               ) : (
                 <>
                   <div className="flex items-baseline gap-3 mb-8">
-                    <span className="text-4xl font-bold text-white">${searchResult.price}</span>
+                    <span className="text-4xl font-bold text-slate-900 dark:text-white">${searchResult.price}</span>
                     <span className={`text-lg font-medium flex items-center ${parseFloat(searchResult.change) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {parseFloat(searchResult.change) >= 0 ? <ArrowUpRight size={20} className="mr-1" /> : <ArrowDownRight size={20} className="mr-1" />}
                       {parseFloat(searchResult.change) >= 0 ? '+' : ''}{searchResult.change} ({searchResult.changePercent})
@@ -428,36 +455,36 @@ function App() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Volume</div>
-                      <div className="text-slate-200 font-mono text-sm">{searchResult.volume}</div>
+                      <div className="text-slate-900 dark:text-slate-200 font-mono text-sm">{searchResult.volume}</div>
                     </div>
-                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Market Cap</div>
-                      <div className="text-slate-200 font-mono text-sm">{searchResult.marketCap}</div>
+                      <div className="text-slate-900 dark:text-slate-200 font-mono text-sm">{searchResult.marketCap}</div>
                     </div>
-                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">P/E Ratio</div>
-                      <div className="text-slate-200 font-mono text-sm">{searchResult.peRatio}</div>
+                      <div className="text-slate-900 dark:text-slate-200 font-mono text-sm">{searchResult.peRatio}</div>
                     </div>
-                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-950/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                       <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">52W High</div>
-                      <div className="text-slate-200 font-mono text-sm">{searchResult.high52}</div>
+                      <div className="text-slate-900 dark:text-slate-200 font-mono text-sm">{searchResult.high52}</div>
                     </div>
                   </div>
 
                   {/* Price Chart */}
-                  <div className="mb-6 bg-slate-950/30 rounded-xl border border-slate-800/50 p-2">
+                  <div className="mb-6 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-200 dark:border-slate-800/50 p-2">
                     <div className="text-xs text-slate-500 font-medium px-2 pt-2">1 Month Price History</div>
-                    <PriceChart data={searchResult.history} isPositive={parseFloat(searchResult.change) >= 0} />
+                    <PriceChart data={searchResult.history} isPositive={parseFloat(searchResult.change) >= 0} isDark={theme === 'dark'} />
                   </div>
 
                   {/* AI Analysis Section */}
-                  <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-4">
+                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-500/20 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <BrainCircuit size={18} className="text-indigo-400" />
-                        <h3 className="font-semibold text-indigo-100">AI Analyst Insight</h3>
+                        <BrainCircuit size={18} className="text-indigo-600 dark:text-indigo-400" />
+                        <h3 className="font-semibold text-indigo-900 dark:text-indigo-100">AI Analyst Insight</h3>
                       </div>
                       {!aiAnalysis && !isAnalyzing && (
                         <button
@@ -477,12 +504,12 @@ function App() {
                       </div>
                     ) : aiAnalysis ? (
                       <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <p className="text-sm text-indigo-200/90 leading-relaxed">
+                        <p className="text-sm text-indigo-900/90 dark:text-indigo-200/90 leading-relaxed">
                           {aiAnalysis}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-sm text-indigo-300/50 italic">
+                      <p className="text-sm text-indigo-500/70 dark:text-indigo-300/50 italic">
                         Click generate to get an AI-powered technical and fundamental breakdown of {searchResult.ticker}.
                       </p>
                     )}
@@ -492,7 +519,7 @@ function App() {
             </div>
 
             {!isLoading && !error && (
-              <div className="bg-slate-950/80 p-4 border-t border-slate-800 flex justify-between items-center">
+              <div className="bg-slate-50 dark:bg-slate-950/80 p-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs text-slate-500">Real-time data delayed by 15 mins</span>
                 <button className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
                   Trade {searchResult.ticker}
@@ -500,8 +527,9 @@ function App() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </div >
+      )
+      }
 
       {/* Header / Macro Strip */}
       <header className="mb-6">
@@ -510,7 +538,7 @@ function App() {
             <div className="bg-indigo-600 p-1.5 rounded-lg">
               <Activity size={20} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Market<span className="text-indigo-400">Pulse</span></h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Market<span className="text-indigo-600 dark:text-indigo-400">Pulse</span></h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden md:block">
@@ -521,13 +549,19 @@ function App() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearch}
                 placeholder="Search ticker..."
-                className="bg-slate-900 border border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-white placeholder:text-slate-600"
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
             </div>
-            <button className="p-2 bg-slate-900 border border-slate-800 rounded-full hover:bg-slate-800 transition-colors">
-              <AlertTriangle size={18} className="text-slate-400" />
+            <button className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <AlertTriangle size={18} className="text-slate-500 dark:text-slate-400" />
             </button>
-            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-slate-950 ring-2 ring-slate-800">
+            <button
+              onClick={toggleTheme}
+              className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-slate-100 dark:border-slate-950 ring-2 ring-slate-200 dark:ring-slate-800">
               BD
             </div>
           </div>
@@ -545,12 +579,12 @@ function App() {
 
         {/* Center Column: Opportunity Scanner */}
         <div className="lg:col-span-12">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col h-full">
-            <div className="border-b border-slate-800 px-4 pt-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col h-full shadow-sm dark:shadow-none">
+            <div className="border-b border-slate-200 dark:border-slate-800 px-4 pt-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Zap size={18} className="text-amber-400" />
-                  <h2 className="font-semibold text-white">Opportunity Scanner</h2>
+                  <Zap size={18} className="text-amber-500 dark:text-amber-400" />
+                  <h2 className="font-semibold text-slate-900 dark:text-white">Opportunity Scanner</h2>
                 </div>
               </div>
               <div className="flex gap-6">
@@ -558,12 +592,12 @@ function App() {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'
+                    className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                       }`}
                   >
                     {tab}
                     {activeTab === tab && (
-                      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-500 rounded-t-full" />
+                      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-500 rounded-t-full" />
                     )}
                   </button>
                 ))}
@@ -572,8 +606,8 @@ function App() {
             <div className="p-4 flex-1 overflow-y-auto">
               <OpportunityTable data={OPPORTUNITY_DATA[activeTab]} type={activeTab} />
             </div>
-            <div className="bg-slate-950/50 p-3 border-t border-slate-800 text-center">
-              <button className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+            <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
+              <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
                 View All Results
               </button>
             </div>
@@ -581,7 +615,7 @@ function App() {
         </div>
 
       </main>
-    </div>
+    </div >
   );
 }
 
