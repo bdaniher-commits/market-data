@@ -450,8 +450,8 @@ const OpportunityTable = ({ data, type }) => {
               <td className="py-3">
                 {item.rsi ? (
                   <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${parseFloat(item.rsi) > 70 ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                      parseFloat(item.rsi) < 30 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                        'text-slate-500'
+                    parseFloat(item.rsi) < 30 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                      'text-slate-500'
                     }`}>
                     {item.rsi}
                   </span>
@@ -463,7 +463,7 @@ const OpportunityTable = ({ data, type }) => {
                     <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${item.shortScore > 70 ? 'bg-emerald-500' :
-                            item.shortScore > 40 ? 'bg-amber-500' : 'bg-slate-400'
+                          item.shortScore > 40 ? 'bg-amber-500' : 'bg-slate-400'
                           }`}
                         style={{ width: `${item.shortScore}%` }}
                       />
@@ -520,13 +520,19 @@ function App() {
   };
 
   const refreshPrices = async () => {
+    if (isRefreshing) return;
     setIsRefreshing(true);
+
     const currentList = opportunities[activeTab];
-    const updatedList = [...currentList];
+    // Create a deep copy to avoid mutating state directly if it was shallow
+    const updatedList = currentList.map(item => ({ ...item }));
 
     // Process in batches of 5 to avoid rate limits
     const batchSize = 5;
     for (let i = 0; i < currentList.length; i += batchSize) {
+      // Check if tab changed during fetch, if so, we might want to stop or continue carefully
+      // For now, let's just continue updating the list we started with
+
       const batch = currentList.slice(i, i + batchSize);
       const promises = batch.map(async (item, batchIdx) => {
         const quote = await fetchSimpleQuote(item.ticker);
@@ -535,12 +541,16 @@ function App() {
         }
       });
       await Promise.all(promises);
+
+      // Optional: Update state incrementally to show progress? 
+      // No, better to update all at once or per batch to avoid too many renders
+      // Let's update per batch so user sees progress
+      setOpportunities(prev => ({
+        ...prev,
+        [activeTab]: [...updatedList]
+      }));
     }
 
-    setOpportunities(prev => ({
-      ...prev,
-      [activeTab]: updatedList
-    }));
     setLastUpdated(new Date());
     setIsRefreshing(false);
   };
