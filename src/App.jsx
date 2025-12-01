@@ -266,6 +266,39 @@ const calculateShortScore = (rsi, price, sma, changePercent) => {
   return Math.max(0, Math.min(100, score));
 };
 
+const calculateBeta = (stockPrices, marketPrices) => {
+  if (!stockPrices || !marketPrices || stockPrices.length < 30 || marketPrices.length < 30) return 1.0;
+
+  // Align dates (assuming same interval and range, arrays should be roughly same length/aligned)
+  // For simplicity in this MVP, we assume the arrays are aligned by index from the end (most recent)
+  // A more robust solution would match by timestamp
+
+  const len = Math.min(stockPrices.length, marketPrices.length);
+  const stock = stockPrices.slice(-len);
+  const market = marketPrices.slice(-len);
+
+  const stockReturns = [];
+  const marketReturns = [];
+
+  for (let i = 1; i < len; i++) {
+    stockReturns.push((stock[i] - stock[i - 1]) / stock[i - 1]);
+    marketReturns.push((market[i] - market[i - 1]) / market[i - 1]);
+  }
+
+  const meanStock = stockReturns.reduce((a, b) => a + b, 0) / stockReturns.length;
+  const meanMarket = marketReturns.reduce((a, b) => a + b, 0) / marketReturns.length;
+
+  let covariance = 0;
+  let variance = 0;
+
+  for (let i = 0; i < stockReturns.length; i++) {
+    covariance += (stockReturns[i] - meanStock) * (marketReturns[i] - meanMarket);
+    variance += (marketReturns[i] - meanMarket) ** 2;
+  }
+
+  return variance === 0 ? 1.0 : covariance / variance;
+};
+
 const formatMarketCap = (marketCap) => {
   if (!marketCap) return 'N/A';
   if (marketCap >= 1e12) return (marketCap / 1e12).toFixed(2) + 'T';
@@ -274,51 +307,39 @@ const formatMarketCap = (marketCap) => {
   return marketCap.toLocaleString();
 };
 
-const fetchSimpleQuote = async (ticker) => {
+const fetchSpyData = async () => {
   try {
-    // Fetch more data to calculate indicators (2 months for enough history)
-    // Also fetch quoteSummary for Beta
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=3mo`;
+    const response = await fetchWithFallback(url);
+    const data = await response.json();
+    return data.chart.result[0].indicators.quote[0].close;
+  } catch (e) {
+    console.warn("Failed to fetch SPY data for Beta calculation", e);
+    return [];
+  }
+};
+
+const fetchSimpleQuote = async (ticker, spyPrices = []) => {
+  try {
+    // Fetch chart data
     const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=3mo`;
-    const summaryUrl = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=summaryDetail,defaultKeyStatistics`;
+    const response = await fetchWithFallback(chartUrl);
 
-    const [chartResp, summaryResp] = await Promise.allSettled([
-      fetchWithFallback(chartUrl),
-      fetchWithFallback(summaryUrl)
-    ]);
-
-    let prices = [];
-    let quote = {};
-    let beta = 1.0; // Default to market beta
-
-    if (chartResp.status === 'fulfilled') {
-      const data = await chartResp.value.json();
-      const result = data.chart.result[0];
-      quote = result.meta;
-      prices = result.indicators.quote[0].close;
-    }
-
-    if (summaryResp.status === 'fulfilled') {
-      try {
-        const data = await summaryResp.value.json();
-        const summary = data.quoteSummary.result[0].summaryDetail;
-        if (summary && summary.beta && summary.beta.raw) {
-          beta = summary.beta.raw;
-        } else if (summary && summary.beta) {
-          beta = summary.beta; // Sometimes it's just a number
-        }
-      } catch (e) {
-        console.warn(`Could not parse beta for ${ticker}`, e);
-      }
-    }
+    const data = await response.json();
+    const result = data.chart.result[0];
+    const quote = result.meta;
+    const prices = result.indicators.quote[0].close;
 
     // Calculate Indicators
-    // Filter nulls first
     const cleanPrices = prices.filter(p => p !== null);
     const currentPrice = quote.regularMarketPrice || 0;
 
     const rsi = calculateRSI(cleanPrices);
     const sma20 = calculateSMA(cleanPrices, 20);
     const shortScore = (rsi && sma20) ? calculateShortScore(rsi, currentPrice, sma20, quote.regularMarketChangePercent) : null;
+
+    // Calculate Beta
+    const beta = calculateBeta(cleanPrices, spyPrices);
 
     return {
       price: currentPrice.toFixed(2),
@@ -1040,28 +1061,24 @@ function App() {
     if (isRefreshing) return;
     setIsRefreshing(true);
 
-    const currentList = opportunities[activeTab];
-    // Create a deep copy to avoid mutating state directly if it was shallow
+    // Fetch SPY data first for Beta calculation
+    const spyPrices = await fetchSpyData();
+
+    // Create a deep copy to avoid mutating state directly
+    const currentList = opportunities[activeTab] || [];
     const updatedList = currentList.map(item => ({ ...item }));
 
-    // Process in batches of 5 to avoid rate limits
-    const batchSize = 5;
     for (let i = 0; i < currentList.length; i += batchSize) {
-      // Check if tab changed during fetch, if so, we might want to stop or continue carefully
-      // For now, let's just continue updating the list we started with
-
       const batch = currentList.slice(i, i + batchSize);
       const promises = batch.map(async (item, batchIdx) => {
-        const quote = await fetchSimpleQuote(item.ticker);
+        const quote = await fetchSimpleQuote(item.ticker, spyPrices);
         if (quote) {
           updatedList[i + batchIdx] = { ...item, ...quote };
         }
       });
       await Promise.all(promises);
 
-      // Optional: Update state incrementally to show progress?
-      // No, better to update all at once or per batch to avoid too many renders
-      // Let's update per batch so user sees progress
+      // Update state incrementally
       setOpportunities(prev => ({
         ...prev,
         [activeTab]: [...updatedList]
