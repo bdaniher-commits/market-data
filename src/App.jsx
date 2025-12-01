@@ -18,7 +18,10 @@ import {
   TrendingDown as BearishIcon,
   TrendingUp as BullishIcon,
   HelpCircle,
-  BookOpen
+  BookOpen,
+  PieChart,
+  Target,
+  ShieldAlert
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -429,6 +432,54 @@ const MacroCard = ({ label, value, change, isPositive }) => {
   );
 };
 
+const RiskDashboard = ({ opportunities }) => {
+  const longs = opportunities['conviction'] || [];
+  const shorts = opportunities['shorts'] || [];
+
+  const calculateExposure = (list) => list.reduce((acc, item) => acc + parseFloat(item.allocation), 0);
+
+  const longExposure = calculateExposure(longs);
+  const shortExposure = calculateExposure(shorts);
+  const netExposure = longExposure - shortExposure;
+  const grossExposure = longExposure + shortExposure;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
+        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Net Exposure</div>
+        <div className={`text-2xl font-bold ${netExposure > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          {netExposure > 0 ? '+' : ''}{netExposure.toFixed(1)}%
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Market Direction Risk</div>
+      </div>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none">
+        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Gross Exposure</div>
+        <div className="text-2xl font-bold text-slate-900 dark:text-white">
+          {grossExposure.toFixed(1)}%
+        </div>
+        <div className="text-xs text-slate-400 mt-1">Total Leverage</div>
+      </div>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm dark:shadow-none col-span-2">
+        <div className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-3">Exposure Balance</div>
+        <div className="flex items-center gap-2 h-8">
+          <div
+            className="h-full bg-emerald-500/20 border border-emerald-500/50 rounded-l-lg flex items-center justify-center text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-all duration-500"
+            style={{ width: `${(longExposure / grossExposure) * 100}%` }}
+          >
+            Long {longExposure.toFixed(1)}%
+          </div>
+          <div
+            className="h-full bg-rose-500/20 border border-rose-500/50 rounded-r-lg flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 transition-all duration-500"
+            style={{ width: `${(shortExposure / grossExposure) * 100}%` }}
+          >
+            Short {shortExposure.toFixed(1)}%
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DefinitionsSection = () => {
   return (
     <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm dark:shadow-none">
@@ -484,8 +535,8 @@ const OpportunityTable = ({ data, type }) => {
             <th className="pb-2 font-medium">Ticker</th>
             <th className="pb-2 font-medium">Price</th>
             <th className="pb-2 font-medium">Mkt Cap</th>
-            <th className="pb-2 font-medium">RSI</th>
-            <th className="pb-2 font-medium">Score</th>
+            <th className="pb-2 font-medium">Contrib</th>
+            <th className="pb-2 font-medium">Risk Levels</th>
             <th className="pb-2 font-medium text-right">Signal</th>
           </tr>
         </thead>
@@ -534,23 +585,33 @@ const OpportunityTable = ({ data, type }) => {
                 {item.marketCap || 'N/A'}
               </td>
               <td className="py-3">
-                {item.rsi ? (
-                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${parseFloat(item.rsi) > 70 ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                    parseFloat(item.rsi) < 30 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                      'text-slate-500'
-                    }`}>
-                    {item.rsi}
-                  </span>
-                ) : <span className="text-slate-400">-</span>}
+                <div className={`text-xs font-bold ${(parseFloat(item.allocation) * parseFloat(item.changePercent)) >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                  }`}>
+                  {((parseFloat(item.allocation) * parseFloat(item.changePercent)) / 100).toFixed(2)}%
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {item.allocation} alloc
+                </div>
               </td>
               <td className="py-3">
-                {item.shortScore !== undefined && item.shortScore !== 'N/A' ? (
-                  <span className={`text-sm font-bold ${item.shortScore > 70 ? 'text-emerald-500' :
-                    item.shortScore > 40 ? 'text-amber-500' : 'text-slate-400'
-                    }`}>
-                    {item.shortScore}
-                  </span>
-                ) : <span className="text-slate-400">-</span>}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1 text-[10px] text-rose-500">
+                    <ShieldAlert size={10} />
+                    <span>
+                      {type === 'conviction'
+                        ? (parseFloat(item.price) * 0.95).toFixed(2)
+                        : (parseFloat(item.price) * 1.05).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-500">
+                    <Target size={10} />
+                    <span>
+                      {type === 'conviction'
+                        ? (parseFloat(item.price) * 1.15).toFixed(2)
+                        : (parseFloat(item.price) * 0.85).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </td>
               <td className="py-3 text-right">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${type === 'conviction' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
@@ -861,6 +922,11 @@ function App() {
 
       {/* Main Grid */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* Risk Dashboard */}
+        <div className="lg:col-span-12">
+          <RiskDashboard opportunities={opportunities} />
+        </div>
 
         {/* Center Column: Opportunity Scanner */}
         <div className="lg:col-span-12">
