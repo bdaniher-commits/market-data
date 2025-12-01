@@ -1113,14 +1113,17 @@ function App() {
         const quote = await fetchSimpleQuote(item.ticker, spyPrices);
         if (quote) {
           updatedList[i + batchIdx] = { ...item, ...quote };
+        } else {
+          // Mark for removal if fetch fails (likely inactive/delisted)
+          updatedList[i + batchIdx] = { ...item, _shouldRemove: true };
         }
       });
       await Promise.all(promises);
 
-      // Update state incrementally
+      // Update state incrementally, filtering out failed items
       setOpportunities(prev => ({
         ...prev,
-        [activeTab]: [...updatedList]
+        [activeTab]: updatedList.filter(item => !item._shouldRemove)
       }));
 
       // Add delay between batches to avoid rate limiting
