@@ -148,7 +148,9 @@ const OPPORTUNITY_DATA = {
 const fetchWithFallback = async (targetUrl) => {
   const proxies = [
     `https://corsproxy.io/?${targetUrl}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
   ];
 
   for (const url of proxies) {
@@ -157,7 +159,7 @@ const fetchWithFallback = async (targetUrl) => {
       if (response.ok) return response;
       console.warn(`Fetch failed for ${url}: ${response.status}`);
     } catch (e) {
-      console.warn(`Fetch error for ${url}:`, e);
+      console.warn(`Fetch error for ${url}:`, e.message);
     }
   }
   throw new Error('Failed to fetch data from all sources');
@@ -308,26 +310,15 @@ const formatMarketCap = (marketCap) => {
 };
 
 const fetchSpyData = async () => {
-  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=3mo`;
-  const proxies = [
-    `https://corsproxy.io/?${targetUrl}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
-  ];
-
-  for (const url of proxies) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        return data.chart.result[0].indicators.quote[0].close;
-      }
-      console.warn(`SPY fetch failed for ${url}: ${response.status}`);
-    } catch (e) {
-      console.warn(`SPY fetch error for ${url}:`, e);
-    }
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=3mo`;
+    const response = await fetchWithFallback(url);
+    const data = await response.json();
+    return data.chart.result[0].indicators.quote[0].close;
+  } catch (e) {
+    console.warn("Failed to fetch SPY data for Beta calculation", e);
+    return [];
   }
-  console.error("Failed to fetch SPY data from all sources for Beta calculation");
-  return [];
 };
 
 const fetchSimpleQuote = async (ticker, spyPrices = []) => {
