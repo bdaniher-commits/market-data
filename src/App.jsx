@@ -161,6 +161,8 @@ const fetchWithFallback = async (targetUrl) => {
     } catch (e) {
       console.warn(`Fetch error for ${url}:`, e.message);
     }
+    // Add a small delay between proxy attempts to be nice
+    await new Promise(r => setTimeout(r, 500));
   }
   throw new Error('Failed to fetch data from all sources');
 };
@@ -310,11 +312,32 @@ const formatMarketCap = (marketCap) => {
 };
 
 const fetchSpyData = async () => {
+  // Check cache first
+  const CACHE_KEY = 'spy_data_cache';
+  const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
   try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const { timestamp, data } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        console.log("Using cached SPY data");
+        return data;
+      }
+    }
+
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=3mo`;
     const response = await fetchWithFallback(url);
     const data = await response.json();
-    return data.chart.result[0].indicators.quote[0].close;
+    const prices = data.chart.result[0].indicators.quote[0].close;
+
+    // Save to cache
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      data: prices
+    }));
+
+    return prices;
   } catch (e) {
     console.warn("Failed to fetch SPY data for Beta calculation", e);
     return [];
@@ -1083,6 +1106,7 @@ function App() {
     const currentList = opportunities[activeTab] || [];
     const updatedList = currentList.map(item => ({ ...item }));
 
+    const batchSize = 3; // Reduced batch size
     for (let i = 0; i < currentList.length; i += batchSize) {
       const batch = currentList.slice(i, i + batchSize);
       const promises = batch.map(async (item, batchIdx) => {
@@ -1098,6 +1122,11 @@ function App() {
         ...prev,
         [activeTab]: [...updatedList]
       }));
+
+      // Add delay between batches to avoid rate limiting
+      if (i + batchSize < currentList.length) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
 
     setLastUpdated(new Date());
