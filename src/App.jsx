@@ -812,9 +812,7 @@ const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) 
           <tr className="text-slate-500 border-b border-slate-200 dark:border-slate-800 text-xs uppercase tracking-wider">
             <HeaderCell label="Ticker" column="ticker" />
             <HeaderCell label="Price" column="price" />
-            <HeaderCell label="Alloc %" column="allocation" />
             <HeaderCell label="$ Value" column="value" />
-            <HeaderCell label="Day P&L" column="pnl" />
             <th className="pb-2 font-medium text-left">Risk Levels</th>
             <th className="pb-2 font-medium text-right">Signal</th>
           </tr>
@@ -865,30 +863,8 @@ const OpportunityTable = ({ data, type, onAllocationChange, investmentAmount }) 
                     </div>
                   )}
                 </td>
-                <td className="py-3">
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={item.allocation}
-                      onChange={(e) => onAllocationChange(item.ticker, e.target.value)}
-                      className="w-12 px-1 py-0.5 text-[10px] bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-indigo-500 rounded text-center outline-none transition-all font-medium text-slate-700 dark:text-slate-300"
-                      min="0"
-                      max="100"
-                      step="0.5"
-                    />
-                    <span className="text-[10px] text-slate-500">%</span>
-                  </div>
-                </td>
                 <td className="py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
                   ${positionValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </td>
-                <td className="py-3">
-                  <div className={`text-xs font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(0)}
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    {((pnl / investmentAmount) * 100).toFixed(2)}% impact
-                  </div>
                 </td>
                 <td className="py-3">
                   <div className="flex flex-col gap-1">
