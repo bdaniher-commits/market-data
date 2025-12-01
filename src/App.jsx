@@ -13,7 +13,8 @@ import {
   Sparkles,
   BrainCircuit,
   Sun,
-  Moon
+  Moon,
+  RefreshCw
 } from 'lucide-react';
 
 // --- Mock Data ---
@@ -134,11 +135,30 @@ const OPPORTUNITY_DATA = {
   ]
 };
 
+const fetchWithFallback = async (targetUrl) => {
+  const proxies = [
+    `https://corsproxy.io/?${targetUrl}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+  ];
+
+  for (const url of proxies) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      console.warn(`Fetch failed for ${url}: ${response.status}`);
+    } catch (e) {
+      console.warn(`Fetch error for ${url}:`, e);
+    }
+  }
+  throw new Error('Failed to fetch data from all sources');
+};
+
 const fetchTickerData = async (ticker) => {
   try {
     // Fetch 1 month of daily data for the chart
-    const response = await fetch(`https://corsproxy.io/?https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1mo`);
-    if (!response.ok) throw new Error('Network response was not ok');
+    // Fetch 1 month of daily data for the chart
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1mo`;
+    const response = await fetchWithFallback(targetUrl);
 
     const data = await response.json();
     const result = data.chart.result[0];
@@ -167,6 +187,27 @@ const fetchTickerData = async (ticker) => {
     };
   } catch (error) {
     console.error("Error fetching data:", error);
+    return null;
+  }
+};
+
+
+const fetchSimpleQuote = async (ticker) => {
+  try {
+    const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+    const response = await fetchWithFallback(targetUrl);
+
+    const data = await response.json();
+    const result = data.chart.result[0];
+    const quote = result.meta;
+
+    return {
+      price: quote.regularMarketPrice.toFixed(2),
+      change: (quote.regularMarketPrice - quote.chartPreviousClose).toFixed(2),
+      changePercent: ((quote.regularMarketPrice - quote.chartPreviousClose) / quote.chartPreviousClose * 100).toFixed(2) + '%',
+    };
+  } catch (error) {
+    console.error(`Error fetching quote for ${ticker}:`, error);
     return null;
   }
 };
@@ -346,6 +387,9 @@ function App() {
   const [error, setError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [opportunities, setOpportunities] = useState(OPPORTUNITY_DATA);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') || 'dark';
@@ -367,8 +411,40 @@ function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const handleSearch = async (e) => {
-    if (e.key === 'Enter' && searchQuery.trim()) {
+  const refreshPrices = async () => {
+    setIsRefreshing(true);
+    const currentList = opportunities[activeTab];
+    const updatedList = [...currentList];
+
+    // Process in batches of 5 to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < currentList.length; i += batchSize) {
+      const batch = currentList.slice(i, i + batchSize);
+      const promises = batch.map(async (item, batchIdx) => {
+        const quote = await fetchSimpleQuote(item.ticker);
+        if (quote) {
+          updatedList[i + batchIdx] = { ...item, ...quote };
+        }
+      });
+      await Promise.all(promises);
+    }
+
+    setOpportunities(prev => ({
+      ...prev,
+      [activeTab]: updatedList
+    }));
+    setLastUpdated(new Date());
+    setIsRefreshing(false);
+  };
+
+  useEffect(() => {
+    refreshPrices();
+    const interval = setInterval(refreshPrices, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  const performSearch = async () => {
+    if (searchQuery.trim()) {
       setIsLoading(true);
       setError(null);
       setSearchResult(null);
@@ -379,9 +455,15 @@ function App() {
       if (data) {
         setSearchResult(data);
       } else {
-        setError('Ticker not found or API error');
+        setError('Ticker not found or API error. Please try again.');
       }
       setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      performSearch();
     }
   };
 
@@ -542,12 +624,17 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+              <button
+                onClick={performSearch}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-indigo-500 transition-colors"
+              >
+                <Search size={16} />
+              </button>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearch}
+                onKeyDown={handleKeyDown}
                 placeholder="Search ticker..."
                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
               />
@@ -586,6 +673,18 @@ function App() {
                   <Zap size={18} className="text-amber-500 dark:text-amber-400" />
                   <h2 className="font-semibold text-slate-900 dark:text-white">Opportunity Scanner</h2>
                 </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 hidden sm:inline-block">
+                    Updated: {lastUpdated.toLocaleTimeString()}
+                  </span>
+                  <button
+                    onClick={refreshPrices}
+                    disabled={isRefreshing}
+                    className={`p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isRefreshing ? 'animate-spin text-indigo-500' : 'text-slate-400 hover:text-indigo-500'}`}
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                </div>
               </div>
               <div className="flex gap-6">
                 {['conviction', 'shorts'].map((tab) => (
@@ -604,7 +703,7 @@ function App() {
               </div>
             </div>
             <div className="p-4 flex-1 overflow-y-auto">
-              <OpportunityTable data={OPPORTUNITY_DATA[activeTab]} type={activeTab} />
+              <OpportunityTable data={opportunities[activeTab]} type={activeTab} />
             </div>
             <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
               <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
