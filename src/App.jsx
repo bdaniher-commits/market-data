@@ -59,7 +59,7 @@ function App() {
   };
 
   // 1. Fetch Daily Opportunities (Base List)
-  const { data: baseOpportunities = { conviction: [], shorts: [] } } = useQuery({
+  const { data: baseOpportunities = { conviction: [], shorts: [] }, isLoading: isLoadingBase } = useQuery({
     queryKey: ['opportunities', 'daily'],
     queryFn: fetchDailyOpportunities,
     staleTime: 1000 * 60 * 60 * 24, // 24 hours
@@ -403,7 +403,12 @@ function App() {
                 </div>
               </div>
 
-              {activeTab === 'generator' ? (
+              {isLoadingBase ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
+                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="text-sm font-medium animate-pulse">Loading market data...</div>
+                </div>
+              ) : activeTab === 'generator' ? (
                 <div className="p-4 flex-1 overflow-y-auto">
                   <TradeGenerator
                     opportunities={opportunities}
