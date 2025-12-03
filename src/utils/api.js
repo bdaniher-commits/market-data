@@ -60,6 +60,8 @@ export const fetchTickerData = async (ticker) => {
     }
 };
 
+import { MACRO_DATA, OPPORTUNITY_DATA } from '../data/constants';
+
 export const fetchDailyOpportunities = async () => {
     try {
         // 1. Fetch Conviction Candidates (Undervalued Growth)
@@ -113,8 +115,12 @@ export const fetchDailyOpportunities = async () => {
         };
 
     } catch (error) {
-        console.error("Failed to fetch daily opportunities:", error);
-        return null;
+        console.warn("Failed to fetch daily opportunities, using fallback data:", error);
+        // Fallback to static data if API fails
+        return {
+            conviction: OPPORTUNITY_DATA.conviction.slice(0, 15), // Limit to reasonable number
+            shorts: OPPORTUNITY_DATA.shorts.slice(0, 15)
+        };
     }
 };
 

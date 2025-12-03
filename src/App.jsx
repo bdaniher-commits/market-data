@@ -141,8 +141,10 @@ function App() {
         if (quote) {
           updatedList[i + batchIdx] = { ...item, ...quote };
         } else {
-          // Mark for removal if fetch fails (likely inactive/delisted)
-          updatedList[i + batchIdx] = { ...item, _shouldRemove: true };
+          // Keep existing item if fetch fails, don't remove it.
+          // Only remove if we explicitly know it's invalid (which we don't here)
+          console.warn(`Could not refresh data for ${item.ticker}, keeping stale data.`);
+          updatedList[i + batchIdx] = item;
         }
       });
       await Promise.all(promises);
