@@ -358,7 +358,7 @@ function App() {
         </header>
 
         {/* Main Grid */}
-        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-200px)]">
+        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Risk Dashboard */}
           <div className="lg:col-span-12 shrink-0">
             <RiskDashboard opportunities={opportunities} investmentAmount={investmentAmount} />
@@ -366,7 +366,7 @@ function App() {
 
           {/* Center Column: Opportunity Scanner */}
           <div className="lg:col-span-12 flex flex-col min-h-0">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col h-full shadow-sm dark:shadow-none">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-sm dark:shadow-none">
               <div className="border-b border-slate-200 dark:border-slate-800 px-4 pt-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -413,7 +413,7 @@ function App() {
                 </div>
               ) : (
                 <>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1">
                     <OpportunityTable
                       data={displayOpportunities[activeTab]}
                       type={activeTab}
