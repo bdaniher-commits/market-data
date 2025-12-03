@@ -35,7 +35,15 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [opportunities, setOpportunities] = useState(() => {
     const saved = localStorage.getItem('opportunities_v2');
-    return saved ? JSON.parse(saved) : OPPORTUNITY_DATA;
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error parsing saved opportunities:", e);
+        return { conviction: [], shorts: [] };
+      }
+    }
+    return { conviction: [], shorts: [] };
   });
 
   const opportunitiesRef = useRef(opportunities);
