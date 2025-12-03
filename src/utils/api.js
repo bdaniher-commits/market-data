@@ -3,6 +3,7 @@ import { formatMarketCap } from './formatters';
 
 export const fetchWithFallback = async (targetUrl) => {
     const proxies = [
+        `/api/proxy?url=${encodeURIComponent(targetUrl)}`,
         `https://corsproxy.io/?${targetUrl}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
         `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
@@ -130,31 +131,11 @@ export const fetchDailyOpportunities = async () => {
 };
 
 export const fetchSpyData = async () => {
-    // Check cache first
-    const CACHE_KEY = 'spy_data_cache';
-    const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-
     try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            const { timestamp, data } = JSON.parse(cached);
-            if (Date.now() - timestamp < CACHE_DURATION) {
-                console.log("Using cached SPY data");
-                return data;
-            }
-        }
-
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&range=3mo`;
         const response = await fetchWithFallback(url);
         const data = await response.json();
         const prices = data.chart.result[0].indicators.quote[0].close;
-
-        // Save to cache
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-            timestamp: Date.now(),
-            data: prices
-        }));
-
         return prices;
     } catch (e) {
         console.warn("Failed to fetch SPY data for Beta calculation", e);

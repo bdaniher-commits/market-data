@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity,
   Zap,
@@ -25,66 +25,16 @@ import TradeGenerator from './components/TradeGenerator';
 import DefinitionsSection from './components/DefinitionsSection';
 import OpportunityTable from './components/OpportunityTable';
 
+import { useQuery } from '@tanstack/react-query';
+
 function App() {
   const [activeTab, setActiveTab] = useState('conviction');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [opportunities, setOpportunities] = useState(() => {
-    const saved = localStorage.getItem('opportunities_v2');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing saved opportunities:", e);
-        return { conviction: [], shorts: [] };
-      }
-    }
-    return { conviction: [], shorts: [] };
-  });
-
-  const opportunitiesRef = useRef(opportunities);
-  useEffect(() => {
-    opportunitiesRef.current = opportunities;
-  }, [opportunities]);
-
-  const [lastListUpdate, setLastListUpdate] = useState(() => {
-    return localStorage.getItem('lastListUpdate') || null;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('opportunities_v2', JSON.stringify(opportunities));
-  }, [opportunities]);
-
-  // Daily Update Check
-  useEffect(() => {
-    const checkDailyUpdate = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      if (lastListUpdate !== today) {
-        console.log("New day detected, fetching fresh market opportunities...");
-        const dailyOps = await fetchDailyOpportunities();
-
-        if (dailyOps) {
-          setOpportunities(prev => ({
-            ...prev,
-            conviction: dailyOps.conviction,
-            shorts: dailyOps.shorts
-          }));
-          setLastListUpdate(today);
-          localStorage.setItem('lastListUpdate', today);
-          console.log("Market opportunities updated for", today);
-        }
-      }
-    };
-
-    checkDailyUpdate();
-  }, [lastListUpdate]);
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [investmentAmount, setInvestmentAmount] = useState(100000);
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -93,6 +43,7 @@ function App() {
     return 'dark';
   });
 
+  // Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -107,87 +58,91 @@ function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const handleQuantityChange = (ticker, newQty) => {
-    setOpportunities(prev => {
-      const updated = { ...prev };
-      ['conviction', 'shorts'].forEach(key => {
-        if (updated[key]) {
-          updated[key] = updated[key].map(item =>
-            item.ticker === ticker ? { ...item, currentQty: parseInt(newQty) || 0 } : item
-          );
+  // 1. Fetch Daily Opportunities (Base List)
+  const { data: baseOpportunities = { conviction: [], shorts: [] } } = useQuery({
+    queryKey: ['opportunities', 'daily'],
+    queryFn: fetchDailyOpportunities,
+    staleTime: 1000 * 60 * 60 * 24, // 24 hours
+  });
+
+  // 2. Fetch SPY Data (for Beta)
+  const { data: spyPrices } = useQuery({
+    queryKey: ['spy'],
+    queryFn: fetchSpyData,
+    staleTime: 1000 * 60 * 60, // 1 hour
+    initialData: []
+  });
+
+  // 3. Fetch Live Prices for Active Tab
+  const { data: opportunities = { conviction: [], shorts: [] }, isFetching: isRefreshing, refetch: refreshPrices, dataUpdatedAt } = useQuery({
+    queryKey: ['opportunities', 'live', activeTab],
+    queryFn: async () => {
+      const currentList = baseOpportunities?.[activeTab] || [];
+      if (currentList.length === 0) return baseOpportunities || { conviction: [], shorts: [] };
+
+      // Batch fetch updates
+      const batchSize = 15;
+      const updates = [];
+
+      for (let i = 0; i < currentList.length; i += batchSize) {
+        const batch = currentList.slice(i, i + batchSize);
+        const batchResults = await Promise.all(batch.map(async (item) => {
+          const quote = await fetchSimpleQuote(item.ticker, spyPrices);
+          return quote ? { ticker: item.ticker, ...quote } : null;
+        }));
+        updates.push(...batchResults);
+
+        // Small delay between batches
+        if (i + batchSize < currentList.length) {
+          await new Promise(r => setTimeout(r, 1000));
         }
+      }
+
+      const updateMap = new Map(updates.filter(u => u).map(u => [u.ticker, u]));
+
+      // Merge updates into base list
+      const mergedList = currentList.map(item => {
+        if (updateMap.has(item.ticker)) {
+          return { ...item, ...updateMap.get(item.ticker) };
+        }
+        return item;
       });
-      return updated;
-    });
+
+      return {
+        ...baseOpportunities,
+        [activeTab]: mergedList
+      };
+    },
+    // Only run if we have base data and active tab is a list (not generator)
+    enabled: !!baseOpportunities?.[activeTab] && activeTab !== 'generator',
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Local state for quantity adjustments (merged with query data for display)
+  const [quantities, setQuantities] = useState({});
+
+  const handleQuantityChange = (ticker, newQty) => {
+    setQuantities(prev => ({
+      ...prev,
+      [ticker]: parseInt(newQty) || 0
+    }));
   };
 
-  const refreshPrices = useCallback(async () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
+  // Merge quantities into display data
+  // Use opportunities (live data) if available, otherwise fall back to baseOpportunities
+  const currentData = opportunities || baseOpportunities || { conviction: [], shorts: [] };
 
-    // Fetch SPY data first for Beta calculation
-    const spyPrices = await fetchSpyData();
-
-    // Use ref to get current opportunities without adding it to dependency array
-    const currentOps = opportunitiesRef.current;
-    const currentList = currentOps[activeTab] || [];
+  const displayOpportunities = {
+    conviction: (currentData?.conviction || []).map(item => ({ ...item, currentQty: quantities[item.ticker] ?? item.currentQty ?? 0 })),
+    shorts: (currentData?.shorts || []).map(item => ({ ...item, currentQty: quantities[item.ticker] ?? item.currentQty ?? 0 }))
+  };
 
 
-    const batchSize = 15; // Increased batch size for faster loading
-    for (let i = 0; i < currentList.length; i += batchSize) {
-      const batch = currentList.slice(i, i + batchSize);
-
-      // Fetch updates for this batch
-      const batchUpdates = await Promise.all(batch.map(async (item) => {
-        const quote = await fetchSimpleQuote(item.ticker, spyPrices);
-        return quote ? { ticker: item.ticker, ...quote } : null;
-      }));
-
-      // Create a map of successful updates
-      const updateMap = new Map(
-        batchUpdates
-          .filter(u => u !== null)
-          .map(u => [u.ticker, u])
-      );
-
-      // Update state incrementally by merging into PREVIOUS state
-      // This prevents overwriting new items that might have been added by checkDailyUpdate
-      setOpportunities(prev => {
-        const currentTabList = prev[activeTab] || [];
-        const newList = currentTabList.map(item => {
-          if (updateMap.has(item.ticker)) {
-            return { ...item, ...updateMap.get(item.ticker) };
-          }
-          return item;
-        });
-
-        return {
-          ...prev,
-          [activeTab]: newList
-        };
-      });
-
-      // Add delay between batches to avoid rate limiting
-      if (i + batchSize < currentList.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-
-    setLastUpdated(new Date());
-    setIsRefreshing(false);
-  }, [activeTab, isRefreshing]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshPrices();
-    const interval = setInterval(refreshPrices, 60000); // Refresh every minute
-    return () => clearInterval(interval);
-  }, [refreshPrices]);
 
   const performSearch = async () => {
     if (searchQuery.trim()) {
-      setIsLoading(true);
-      setError(null);
+      setIsLoadingSearch(true);
+      setSearchError(null);
       setSearchResult(null);
       setAiAnalysis(null);
 
@@ -196,9 +151,9 @@ function App() {
       if (data) {
         setSearchResult(data);
       } else {
-        setError('Ticker not found or API error. Please try again.');
+        setSearchError('Ticker not found or API error. Please try again.');
       }
-      setIsLoading(false);
+      setIsLoadingSearch(false);
     }
   };
 
@@ -211,7 +166,7 @@ function App() {
   const closeSearch = () => {
     setSearchResult(null);
     setSearchQuery('');
-    setError(null);
+    setSearchError(null);
     setAiAnalysis(null);
   };
 
@@ -227,15 +182,15 @@ function App() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 p-4 md:p-6 font-sans selection:bg-indigo-500/30 relative transition-colors duration-300">
 
       {/* Search Modal Overlay */}
-      {(searchResult || isLoading || error) && (
+      {(searchResult || isLoadingSearch || searchError) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8">
             <div className="p-6">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  {isLoading ? (
+                  {isLoadingSearch ? (
                     <div className="h-8 w-32 bg-slate-800 rounded animate-pulse mb-2"></div>
-                  ) : error ? (
+                  ) : searchError ? (
                     <h2 className="text-xl font-bold text-rose-400 tracking-tight">Error</h2>
                   ) : (
 
@@ -253,7 +208,7 @@ function App() {
                 </button>
               </div>
 
-              {isLoading ? (
+              {isLoadingSearch ? (
                 <div className="space-y-4">
                   <div className="h-10 w-48 bg-slate-800 rounded animate-pulse"></div>
                   <div className="grid grid-cols-2 gap-4">
@@ -263,9 +218,9 @@ function App() {
                     <div className="h-16 bg-slate-800 rounded animate-pulse"></div>
                   </div>
                 </div>
-              ) : error ? (
+              ) : searchError ? (
                 <div className="text-slate-300 mb-4">
-                  {error}. Please try another ticker.
+                  {searchError}. Please try another ticker.
                 </div>
               ) : (
                 <>
@@ -341,7 +296,7 @@ function App() {
               )}
             </div>
 
-            {!isLoading && !error && (
+            {!isLoadingSearch && !searchError && (
               <div className="bg-slate-50 dark:bg-slate-950/80 p-4 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <span className="text-xs text-slate-500">Real-time data delayed by 15 mins</span>
                 <button className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
@@ -421,7 +376,7 @@ function App() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-400 hidden sm:inline-block">
-                    List: {lastListUpdate || 'N/A'} • Prices: {lastUpdated.toLocaleTimeString()}
+                    Prices: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : 'Loading...'}
                   </span>
                   <button
                     onClick={refreshPrices}
