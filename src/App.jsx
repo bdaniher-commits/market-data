@@ -131,29 +131,41 @@ function App() {
     // Use ref to get current opportunities without adding it to dependency array
     const currentOps = opportunitiesRef.current;
     const currentList = currentOps[activeTab] || [];
-    const updatedList = currentList.map(item => ({ ...item }));
+
 
     const batchSize = 15; // Increased batch size for faster loading
     for (let i = 0; i < currentList.length; i += batchSize) {
       const batch = currentList.slice(i, i + batchSize);
-      const promises = batch.map(async (item, batchIdx) => {
-        const quote = await fetchSimpleQuote(item.ticker, spyPrices);
-        if (quote) {
-          updatedList[i + batchIdx] = { ...item, ...quote };
-        } else {
-          // Keep existing item if fetch fails, don't remove it.
-          // Only remove if we explicitly know it's invalid (which we don't here)
-          console.warn(`Could not refresh data for ${item.ticker}, keeping stale data.`);
-          updatedList[i + batchIdx] = item;
-        }
-      });
-      await Promise.all(promises);
 
-      // Update state incrementally, filtering out failed items
-      setOpportunities(prev => ({
-        ...prev,
-        [activeTab]: updatedList.filter(item => !item._shouldRemove)
+      // Fetch updates for this batch
+      const batchUpdates = await Promise.all(batch.map(async (item) => {
+        const quote = await fetchSimpleQuote(item.ticker, spyPrices);
+        return quote ? { ticker: item.ticker, ...quote } : null;
       }));
+
+      // Create a map of successful updates
+      const updateMap = new Map(
+        batchUpdates
+          .filter(u => u !== null)
+          .map(u => [u.ticker, u])
+      );
+
+      // Update state incrementally by merging into PREVIOUS state
+      // This prevents overwriting new items that might have been added by checkDailyUpdate
+      setOpportunities(prev => {
+        const currentTabList = prev[activeTab] || [];
+        const newList = currentTabList.map(item => {
+          if (updateMap.has(item.ticker)) {
+            return { ...item, ...updateMap.get(item.ticker) };
+          }
+          return item;
+        });
+
+        return {
+          ...prev,
+          [activeTab]: newList
+        };
+      });
 
       // Add delay between batches to avoid rate limiting
       if (i + batchSize < currentList.length) {
@@ -447,7 +459,7 @@ function App() {
               </div>
             ) : (
               <>
-                <div className="p-4 flex-1 overflow-y-auto">
+                <div className="p-4 flex-1 overflow-y-auto min-h-[500px]">
                   <OpportunityTable
                     data={opportunities[activeTab]}
                     type={activeTab}

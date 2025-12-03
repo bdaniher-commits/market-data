@@ -65,10 +65,10 @@ import { MACRO_DATA, OPPORTUNITY_DATA } from '../data/constants';
 export const fetchDailyOpportunities = async () => {
     try {
         // 1. Fetch Conviction Candidates (Undervalued Growth)
-        const growthUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=undervalued_growth_stocks&count=10';
+        const growthUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=undervalued_growth_stocks&count=50';
         const growthRes = await fetchWithFallback(growthUrl);
         const growthData = await growthRes.json();
-        const growthTickers = growthData.finance.result[0].quotes.slice(0, 10).map(q => ({
+        const growthTickers = growthData.finance.result[0].quotes.slice(0, 50).map(q => ({
             ticker: q.symbol,
             name: q.shortName || q.longName || q.symbol,
             price: q.regularMarketPrice.toFixed(2),
@@ -78,10 +78,10 @@ export const fetchDailyOpportunities = async () => {
         }));
 
         // 2. Fetch Short Candidates (Most Shorted)
-        const shortUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_shorted_stocks&count=10';
+        const shortUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_shorted_stocks&count=50';
         const shortRes = await fetchWithFallback(shortUrl);
         const shortData = await shortRes.json();
-        const shortTickers = shortData.finance.result[0].quotes.slice(0, 10).map(q => ({
+        const shortTickers = shortData.finance.result[0].quotes.slice(0, 50).map(q => ({
             ticker: q.symbol,
             name: q.shortName || q.longName || q.symbol,
             price: q.regularMarketPrice.toFixed(2),
@@ -91,10 +91,10 @@ export const fetchDailyOpportunities = async () => {
         }));
 
         // 3. Fetch Speculative/Momentum (Day Gainers)
-        const gainerUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=5';
+        const gainerUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=20';
         const gainerRes = await fetchWithFallback(gainerUrl);
         const gainerData = await gainerRes.json();
-        const gainerTickers = gainerData.finance.result[0].quotes.slice(0, 3).map(q => ({
+        const gainerTickers = gainerData.finance.result[0].quotes.slice(0, 20).map(q => ({
             ticker: q.symbol,
             name: q.shortName || q.longName || q.symbol,
             price: q.regularMarketPrice.toFixed(2),
@@ -104,22 +104,27 @@ export const fetchDailyOpportunities = async () => {
         }));
 
         // Combine for Conviction List (Growth + Speculative)
-        const newConviction = [...growthTickers, ...gainerTickers];
+        const apiConviction = [...growthTickers, ...gainerTickers];
+        const apiShorts = shortTickers;
 
-        // Shorts List
-        const newShorts = shortTickers;
+        // Helper to merge API data with static data (deduplicating by ticker)
+        const mergeData = (apiList, staticList) => {
+            const apiTickers = new Set(apiList.map(item => item.ticker));
+            const uniqueStatic = staticList.filter(item => !apiTickers.has(item.ticker));
+            return [...apiList, ...uniqueStatic];
+        };
 
         return {
-            conviction: newConviction,
-            shorts: newShorts
+            conviction: mergeData(apiConviction, OPPORTUNITY_DATA.conviction),
+            shorts: mergeData(apiShorts, OPPORTUNITY_DATA.shorts)
         };
 
     } catch (error) {
         console.warn("Failed to fetch daily opportunities, using fallback data:", error);
         // Fallback to static data if API fails
         return {
-            conviction: OPPORTUNITY_DATA.conviction.slice(0, 15), // Limit to reasonable number
-            shorts: OPPORTUNITY_DATA.shorts.slice(0, 15)
+            conviction: OPPORTUNITY_DATA.conviction,
+            shorts: OPPORTUNITY_DATA.shorts
         };
     }
 };
