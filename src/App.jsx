@@ -206,6 +206,64 @@ const fetchTickerData = async (ticker) => {
   }
 };
 
+const fetchDailyOpportunities = async () => {
+  try {
+    // 1. Fetch Conviction Candidates (Undervalued Growth)
+    const growthUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=undervalued_growth_stocks&count=10';
+    const growthRes = await fetchWithFallback(growthUrl);
+    const growthData = await growthRes.json();
+    const growthTickers = growthData.finance.result[0].quotes.slice(0, 10).map(q => ({
+      ticker: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      price: q.regularMarketPrice.toFixed(2),
+      allocation: '4.0%', // Default allocation
+      signal: 'Buy',
+      exchange: q.exchange
+    }));
+
+    // 2. Fetch Short Candidates (Most Shorted)
+    const shortUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=most_shorted_stocks&count=10';
+    const shortRes = await fetchWithFallback(shortUrl);
+    const shortData = await shortRes.json();
+    const shortTickers = shortData.finance.result[0].quotes.slice(0, 10).map(q => ({
+      ticker: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      price: q.regularMarketPrice.toFixed(2),
+      allocation: '2.0%',
+      signal: 'Short',
+      exchange: q.exchange
+    }));
+
+    // 3. Fetch Speculative/Momentum (Day Gainers)
+    const gainerUrl = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?scrIds=day_gainers&count=5';
+    const gainerRes = await fetchWithFallback(gainerUrl);
+    const gainerData = await gainerRes.json();
+    const gainerTickers = gainerData.finance.result[0].quotes.slice(0, 3).map(q => ({
+      ticker: q.symbol,
+      name: q.shortName || q.longName || q.symbol,
+      price: q.regularMarketPrice.toFixed(2),
+      allocation: '1.0%',
+      signal: 'Spec Buy',
+      exchange: q.exchange
+    }));
+
+    // Combine for Conviction List (Growth + Speculative)
+    const newConviction = [...growthTickers, ...gainerTickers];
+
+    // Shorts List
+    const newShorts = shortTickers;
+
+    return {
+      conviction: newConviction,
+      shorts: newShorts
+    };
+
+  } catch (error) {
+    console.error("Failed to fetch daily opportunities:", error);
+    return null;
+  }
+};
+
 
 // --- Technical Analysis Helpers ---
 
@@ -1047,9 +1105,37 @@ function App() {
     return saved ? JSON.parse(saved) : OPPORTUNITY_DATA;
   });
 
+  const [lastListUpdate, setLastListUpdate] = useState(() => {
+    return localStorage.getItem('lastListUpdate') || null;
+  });
+
   useEffect(() => {
     localStorage.setItem('opportunities_v2', JSON.stringify(opportunities));
   }, [opportunities]);
+
+  // Daily Update Check
+  useEffect(() => {
+    const checkDailyUpdate = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      if (lastListUpdate !== today) {
+        console.log("New day detected, fetching fresh market opportunities...");
+        const dailyOps = await fetchDailyOpportunities();
+
+        if (dailyOps) {
+          setOpportunities(prev => ({
+            ...prev,
+            conviction: dailyOps.conviction,
+            shorts: dailyOps.shorts
+          }));
+          setLastListUpdate(today);
+          localStorage.setItem('lastListUpdate', today);
+          console.log("Market opportunities updated for", today);
+        }
+      }
+    };
+
+    checkDailyUpdate();
+  }, [lastListUpdate]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -1388,7 +1474,7 @@ function App() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-400 hidden sm:inline-block">
-                    Updated: {lastUpdated.toLocaleTimeString()}
+                    List: {lastListUpdate || 'N/A'} • Prices: {lastUpdated.toLocaleTimeString()}
                   </span>
                   <button
                     onClick={refreshPrices}
