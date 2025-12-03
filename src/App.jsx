@@ -179,7 +179,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 p-4 md:p-6 font-sans selection:bg-indigo-500/30 relative transition-colors duration-300">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 font-sans selection:bg-indigo-500/30 relative transition-colors duration-300 flex flex-col overflow-hidden">
 
       {/* Search Modal Overlay */}
       {(searchResult || isLoadingSearch || searchError) && (
@@ -193,7 +193,6 @@ function App() {
                   ) : searchError ? (
                     <h2 className="text-xl font-bold text-rose-400 tracking-tight">Error</h2>
                   ) : (
-
                     <>
                       <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{searchResult.ticker}</h2>
                       <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{searchResult.name}</p>
@@ -305,137 +304,137 @@ function App() {
               </div>
             )}
           </div>
-        </div >
-      )
-      }
-
-      {/* Header / Macro Strip */}
-      <header className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-1.5 rounded-lg">
-              <Activity size={20} className="text-white" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Market<span className="text-indigo-600 dark:text-indigo-400">Pulse</span></h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative hidden md:block">
-              <button
-                onClick={performSearch}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-indigo-500 transition-colors"
-              >
-                <Search size={16} />
-              </button>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Search ticker..."
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
-              />
-            </div>
-            <button className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <AlertTriangle size={18} className="text-slate-500 dark:text-slate-400" />
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
-            >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-slate-100 dark:border-slate-950 ring-2 ring-slate-200 dark:ring-slate-800">
-              BD
-            </div>
-          </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {MACRO_DATA.map((item, idx) => (
-            <MacroCard key={idx} {...item} />
-          ))}
-        </div>
-      </header>
-
-      {/* Main Grid */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        {/* Risk Dashboard */}
-        <div className="lg:col-span-12">
-          <RiskDashboard opportunities={opportunities} investmentAmount={investmentAmount} />
-        </div>
-
-        {/* Center Column: Opportunity Scanner */}
-        <div className="lg:col-span-12">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col h-full shadow-sm dark:shadow-none">
-            <div className="border-b border-slate-200 dark:border-slate-800 px-4 pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Zap size={18} className="text-amber-500 dark:text-amber-400" />
-                  <h2 className="font-semibold text-slate-900 dark:text-white">Opportunity Scanner</h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 hidden sm:inline-block">
-                    Prices: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : 'Loading...'}
-                  </span>
-                  <button
-                    onClick={refreshPrices}
-                    disabled={isRefreshing}
-                    className={`p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isRefreshing ? 'animate-spin text-indigo-500' : 'text-slate-400 hover:text-indigo-500'}`}
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                </div>
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* Header / Macro Strip */}
+        <header className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-indigo-600 p-1.5 rounded-lg">
+                <Activity size={20} className="text-white" />
               </div>
-              <div className="flex gap-6">
-                {['conviction', 'shorts', 'generator'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                      }`}
-                  >
-                    {tab === 'generator' ? 'Trade Generator' : tab}
-                    {activeTab === tab && (
-                      <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-500 rounded-t-full" />
-                    )}
-                  </button>
-                ))}
-              </div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Market<span className="text-indigo-600 dark:text-indigo-400">Pulse</span></h1>
             </div>
-
-            {activeTab === 'generator' ? (
-              <div className="p-4 flex-1 overflow-y-auto">
-                <TradeGenerator
-                  opportunities={opportunities}
-                  investmentAmount={investmentAmount}
-                  setInvestmentAmount={setInvestmentAmount}
+            <div className="flex items-center gap-3">
+              <div className="relative hidden md:block">
+                <button
+                  onClick={performSearch}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-indigo-500 transition-colors"
+                >
+                  <Search size={16} />
+                </button>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Search ticker..."
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-64 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
                 />
               </div>
-            ) : (
-              <>
-                <div className="p-4 flex-1 overflow-y-auto min-h-[500px]">
-                  <OpportunityTable
-                    data={opportunities[activeTab]}
-                    type={activeTab}
-                    onQuantityChange={handleQuantityChange}
+              <button className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <AlertTriangle size={18} className="text-slate-500 dark:text-slate-400" />
+              </button>
+              <button
+                onClick={toggleTheme}
+                className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
+              >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white border-2 border-slate-100 dark:border-slate-950 ring-2 ring-slate-200 dark:ring-slate-800">
+                BD
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {MACRO_DATA.map((item, idx) => (
+              <MacroCard key={idx} {...item} />
+            ))}
+          </div>
+        </header>
+
+        {/* Main Grid */}
+        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-200px)]">
+          {/* Risk Dashboard */}
+          <div className="lg:col-span-12 shrink-0">
+            <RiskDashboard opportunities={opportunities} investmentAmount={investmentAmount} />
+          </div>
+
+          {/* Center Column: Opportunity Scanner */}
+          <div className="lg:col-span-12 flex flex-col min-h-0">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col h-full shadow-sm dark:shadow-none">
+              <div className="border-b border-slate-200 dark:border-slate-800 px-4 pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Zap size={18} className="text-amber-500 dark:text-amber-400" />
+                    <h2 className="font-semibold text-slate-900 dark:text-white">Opportunity Scanner</h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400 hidden sm:inline-block">
+                      Prices: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : 'Loading...'}
+                    </span>
+                    <button
+                      onClick={refreshPrices}
+                      disabled={isRefreshing}
+                      className={`p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isRefreshing ? 'animate-spin text-indigo-500' : 'text-slate-400 hover:text-indigo-500'}`}
+                    >
+                      <RefreshCw size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  {['conviction', 'shorts', 'generator'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`pb-3 text-sm font-medium capitalize transition-colors relative ${activeTab === tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                    >
+                      {tab === 'generator' ? 'Trade Generator' : tab}
+                      {activeTab === tab && (
+                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 dark:bg-indigo-500 rounded-t-full" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {activeTab === 'generator' ? (
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <TradeGenerator
+                    opportunities={opportunities}
                     investmentAmount={investmentAmount}
+                    setInvestmentAmount={setInvestmentAmount}
                   />
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center">
-                  <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
-                    View All Results
-                  </button>
-                </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <div className="flex-1 overflow-hidden">
+                    <OpportunityTable
+                      data={displayOpportunities[activeTab]}
+                      type={activeTab}
+                      onQuantityChange={handleQuantityChange}
+                      investmentAmount={investmentAmount}
+                    />
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-950/50 p-3 border-t border-slate-200 dark:border-slate-800 text-center shrink-0">
+                    <button className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium transition-colors">
+                      View All Results
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        </main>
 
-      </main>
-
-      <DefinitionsSection />
-    </div >
+        <DefinitionsSection />
+      </div>
+    </div>
   );
 }
 
