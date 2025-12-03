@@ -179,6 +179,7 @@ const TradeGenerator = ({ opportunities, investmentAmount, setInvestmentAmount }
                         onClick={() => {
                             if (window.confirm('Are you sure you want to reset all data? This will clear your current quantities and allocations.')) {
                                 localStorage.removeItem('opportunities_v2');
+                                localStorage.removeItem('lastListUpdate');
                                 window.location.reload();
                             }
                         }}
